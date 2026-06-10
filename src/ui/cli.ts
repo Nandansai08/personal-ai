@@ -6,12 +6,13 @@ import type { LLMProvider } from '../providers/interface.js'
 import type { LongTermMemory } from '../memory/long-term.js'
 import type { ProfileManager } from '../persona/profiles.js'
 import type { ToolRegistry } from '../tools/registry.js'
+import type { ModelManager } from '../core/model-manager.js'
 import { logger } from '../core/logger.js'
 import { ConversationContext } from '../core/context.js'
 
 const BANNER = `
 ${chalk.cyan('╔═══════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.3.0')}                   ${chalk.cyan('║')}
+${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.5.0')}                   ${chalk.cyan('║')}
 ${chalk.cyan('║')}  ${chalk.dim('Local-first. Any model.')}              ${chalk.cyan('║')}
 ${chalk.cyan('╚═══════════════════════════════════════╝')}
 `
@@ -23,6 +24,9 @@ const HELP = `
   ${chalk.cyan('/models')}                List available models
   ${chalk.cyan('/health')}                Check provider health
   ${chalk.cyan('/logs')}                  Show log file path
+  ${chalk.cyan('/model')}                 Show current model routing
+  ${chalk.cyan('/model')} <name>          Pin to a specific model
+  ${chalk.cyan('/model auto')}            Resume auto task-based routing
   ${chalk.cyan('/memory')}                Memory stats
   ${chalk.cyan('/memory list')}           List recent memories
   ${chalk.cyan('/memory search')} <q>     Search memories
@@ -37,8 +41,8 @@ const HELP = `
   ${chalk.cyan('/help')}                  Show this message
 `
 
-function makePrompt(provider: LLMProvider, profileManager?: ProfileManager): string {
-  const model   = provider.model
+function makePrompt(provider: LLMProvider, profileManager?: ProfileManager, modelManager?: ModelManager): string {
+  const model   = modelManager ? modelManager.getCurrentModel() : provider.model
   const profile = profileManager?.getActiveName()
   const label   = profile && profile !== 'assistant' ? `${model}|${profile}` : model
   return chalk.cyan(`[${label}] `) + chalk.bold('> ')
@@ -126,6 +130,29 @@ function switchProfile(name: string, profileManager: ProfileManager): void {
   }
 }
 
+function handleModelCmd(parts: string[], modelManager: ModelManager): void {
+  const sub = parts[1]?.toLowerCase()
+  if (!sub) {
+    const stats = modelManager.getStats()
+    console.log(chalk.bold('\nModel routing:'))
+    console.log(`  Current: ${chalk.cyan(stats.current)}  (mode: ${stats.mode})`)
+    console.log(`  Default: ${stats.config.default}`)
+    const tasks = stats.config.tasks
+    for (const [task, model] of Object.entries(tasks)) {
+      if (model) console.log(`  ${task.padEnd(12)} → ${model}`)
+    }
+    console.log()
+    return
+  }
+  if (sub === 'auto') {
+    modelManager.setAuto()
+    console.log(chalk.green('✓ Auto task-based routing enabled'))
+    return
+  }
+  modelManager.setModel(parts.slice(1).join(' '))
+  console.log(chalk.green(`✓ Pinned to ${modelManager.getCurrentModel()}`))
+}
+
 async function handleCommand(
   parts: string[],
   provider: LLMProvider,
@@ -133,6 +160,7 @@ async function handleCommand(
   memory: LongTermMemory | undefined,
   profileManager: ProfileManager | undefined,
   registry?: ToolRegistry,
+  modelManager?: ModelManager,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
@@ -155,6 +183,10 @@ async function handleCommand(
       } else {
         console.log(chalk.dim(`Current model: ${provider.model}`))
       }
+      break
+    case '/model':
+      if (!modelManager) { console.log(chalk.dim(`Current model: ${provider.model}`)); break }
+      handleModelCmd(parts, modelManager)
       break
     case '/health':
       if (provider.healthCheck) {
@@ -201,6 +233,7 @@ export async function startCLI(
   memory?: LongTermMemory,
   profileManager?: ProfileManager,
   registry?: ToolRegistry,
+  modelManager?: ModelManager,
 ): Promise<void> {
   console.log(BANNER)
 
@@ -229,7 +262,7 @@ export async function startCLI(
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
   const refreshPrompt = () => {
-    rl.setPrompt(makePrompt(provider, profileManager))
+    rl.setPrompt(makePrompt(provider, profileManager, modelManager))
     rl.prompt()
   }
   refreshPrompt()
@@ -243,7 +276,7 @@ export async function startCLI(
     if (!input) { refreshPrompt(); return }
 
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry)
+      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager)
       refreshPrompt()
       return
     }
@@ -278,6 +311,10 @@ export async function startCLI(
           process.stdout.write(chalk.cyan(`\n  ⟳ ${chunk.name}…`))
         } else if (chunk.type === 'tool_result') {
           process.stdout.write(chalk.green(' ✓\n'))
+        } else if (chunk.type === 'model_switch') {
+          clearSpinner()
+          console.log(chalk.dim(`\n  ⟳ switching model: ${chunk.from} → ${chunk.to}`))
+          refreshPrompt()
         } else if (chunk.type === 'error') {
           clearSpinner()
           console.error(chalk.red(`\nError: ${chunk.message}`))

@@ -115,8 +115,8 @@ async function* readNdjsonStream(
 export class OllamaProvider implements LLMProvider {
   readonly name            = 'ollama'
   readonly supportsStreaming = true
-  readonly model:           string
-  readonly supportsToolUse: boolean
+  model:           string
+  supportsToolUse: boolean
 
   private baseUrl:     string
   private numCtx:      number
@@ -130,6 +130,12 @@ export class OllamaProvider implements LLMProvider {
     this.numPredict  = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
     this.temperature = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
     this.supportsToolUse = isNativeToolModel(this.model)
+  }
+
+  // fallow-ignore-next-line unused-class-member
+  setModel(model: string): void {
+    this.model = model
+    this.supportsToolUse = isNativeToolModel(model)
   }
 
   async *chat(request: ChatRequest): AsyncGenerator<ChatChunk> {

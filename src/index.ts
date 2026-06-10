@@ -10,6 +10,7 @@ import { loadPersona, loadProfiles, watchPersona, watchProfiles } from './person
 import { ProfileManager } from './persona/profiles.js'
 import { buildSystemPrompt, isGemma3Model } from './persona/system-prompt.js'
 import { startCLI } from './ui/cli.js'
+import { ModelManager, defaultModelsConfig } from './core/model-manager.js'
 import { eventBus } from './core/events.js'
 import { logger } from './core/logger.js'
 import { toolRegistry } from './tools/registry.js'
@@ -63,10 +64,14 @@ async function main(): Promise<void> {
     memories,
     toolsSection,
     new Date(),
-    isGemma3Model(provider.model),
+    isGemma3Model(provider.model),  // provider.model updated per-turn by ModelManager
   )
 
-  const engine = new AssistantEngine(provider, getSystemPrompt, memory, toolRegistry, profileManager, context)
+  const modelManager = provider.name === 'ollama'
+    ? new ModelManager(defaultModelsConfig(), profileManager)
+    : undefined
+
+  const engine = new AssistantEngine(provider, getSystemPrompt, memory, toolRegistry, profileManager, context, modelManager)
 
   process.on('SIGINT', () => {
     eventBus.emit('session_ended', {
@@ -78,7 +83,7 @@ async function main(): Promise<void> {
     process.exit(0)
   })
 
-  await startCLI(provider, engine, context, memory, profileManager, toolRegistry)
+  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

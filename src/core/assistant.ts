@@ -4,6 +4,7 @@ import type { ConversationContext } from './context.js'
 import type { LongTermMemory } from '../memory/long-term.js'
 import type { ProfileManager } from '../persona/profiles.js'
 import type { ToolRegistry } from '../tools/registry.js'
+import type { ModelManager } from './model-manager.js'
 import type { ToolCall } from '../tools/types.js'
 import { parseToolCalls } from '../tools/parser.js'
 import { extractMemoryCandidates } from '../memory/short-term.js'
@@ -19,6 +20,8 @@ export interface AssistantOptions {
 type GetSystemPrompt = (memories: import('../memory/types.js').Memory[], toolsSection: string) => string
 
 export class AssistantEngine {
+  private lastModel: string | undefined
+
   constructor(
     private provider: LLMProvider,
     private getSystemPrompt: GetSystemPrompt,
@@ -26,12 +29,28 @@ export class AssistantEngine {
     private registry: ToolRegistry | undefined,
     private profileManager?: ProfileManager,
     private context?: ConversationContext,
+    private modelManager?: ModelManager,
   ) {}
 
   async *chat(userMessage: string, options?: AssistantOptions): AsyncGenerator<ChatChunk> {
     const memories = this.memory ? this.memory.search(userMessage, 8) : []
 
-    const isGemma = isGemma3Model(this.provider.model)
+    // Model selection via ModelManager if available
+    const selectedModel = this.modelManager
+      ? this.modelManager.selectModel(userMessage, this.context?.getMessages().length ?? 0)
+      : this.provider.model
+
+    if (this.modelManager && this.lastModel && this.lastModel !== selectedModel) {
+      yield { type: 'model_switch', from: this.lastModel, to: selectedModel }
+    }
+    this.lastModel = selectedModel
+
+    // For Ollama provider, update its model dynamically if modelManager selected a different one
+    if (this.modelManager && 'setModel' in this.provider && typeof (this.provider as Record<string, unknown>)['setModel'] === 'function') {
+      ;(this.provider as unknown as { setModel(m: string): void }).setModel(selectedModel)
+    }
+
+    const isGemma = isGemma3Model(selectedModel)
     const toolsSection = (this.registry && this.registry.count() > 0 && isGemma)
       ? this.registry.formatForPrompt()
       : ''
