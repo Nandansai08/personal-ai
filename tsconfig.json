@@ -7,10 +7,6 @@
     "outDir": "./dist",
     "rootDir": ".",
     "strict": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,

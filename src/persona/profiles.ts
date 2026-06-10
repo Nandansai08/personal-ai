@@ -13,7 +13,7 @@ export class ProfileManager {
     if (!this.profiles[this.active]) {
       const first = Object.keys(this.profiles)[0]
       this.active = first ?? 'assistant'
-      logger.warn('profile', `Active profile "${config.active}" not found, using "${this.active}"`)
+      logger.debug('profile', `Active profile "${config.active}" not found, using "${this.active}"`)
     }
   }
 

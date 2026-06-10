@@ -12,6 +12,14 @@ import { buildSystemPrompt, isGemma3Model } from './persona/system-prompt.js'
 import { startCLI } from './ui/cli.js'
 import { eventBus } from './core/events.js'
 import { logger } from './core/logger.js'
+import { toolRegistry } from './tools/registry.js'
+import { webSearchTool } from './tools/web-search.js'
+import { notesTool } from './tools/notes.js'
+import { tasksTool } from './tools/tasks.js'
+import { calculatorTool } from './tools/calculator.js'
+import { fileReaderTool } from './tools/file-reader.js'
+import { createMemoryTool } from './tools/memory-tool.js'
+import type { Memory } from './memory/types.js'
 
 void logger
 
@@ -35,22 +43,30 @@ async function main(): Promise<void> {
   const memory  = new LongTermMemory()
   const context = new ConversationContext()
 
+  // Register all tools
+  toolRegistry.register(webSearchTool)
+  toolRegistry.register(notesTool)
+  toolRegistry.register(tasksTool)
+  toolRegistry.register(calculatorTool)
+  toolRegistry.register(fileReaderTool)
+  toolRegistry.register(createMemoryTool(memory))
+
   let currentPersona = persona
 
   // Hot-reload config files
   watchPersona(path.join(CONFIG, 'persona.yaml'), p => { currentPersona = p })
   watchProfiles(path.join(CONFIG, 'profiles.yaml'), p => profileManager.reload(p))
 
-  const getSystemPrompt = () => buildSystemPrompt(
+  const getSystemPrompt = (memories: Memory[], toolsSection: string) => buildSystemPrompt(
     currentPersona,
     profileManager.getActive(),
-    [],
-    '',
+    memories,
+    toolsSection,
     new Date(),
     isGemma3Model(provider.model),
   )
 
-  const engine = new AssistantEngine(provider, getSystemPrompt, context, memory, profileManager)
+  const engine = new AssistantEngine(provider, getSystemPrompt, memory, toolRegistry, profileManager, context)
 
   process.on('SIGINT', () => {
     eventBus.emit('session_ended', {
@@ -62,7 +78,7 @@ async function main(): Promise<void> {
     process.exit(0)
   })
 
-  await startCLI(provider, engine, context, memory, profileManager)
+  await startCLI(provider, engine, context, memory, profileManager, toolRegistry)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

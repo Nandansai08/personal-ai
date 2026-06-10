@@ -6,17 +6,23 @@ Run Ollama locally, swap to Claude or GPT with one env var. No cloud required.
 
 ---
 
-## Works in v0.1.0
+## What's in v0.4.0
 
-- Ollama chat with streaming (qwen2.5:14b default)
-- Native tool-call format for qwen2.5, llama3, mistral
-- XML tool-call fallback for gemma3, phi
-- Structured logging to `~/.personal-ai/logs/`
-- Internal event bus (observability hooks)
-- Conversation context (in-memory)
-- CLI with readline REPL
+- **Agentic tool loop** — model calls tools, sees results, continues (up to 6 iterations)
+- **Web search** — Serper (primary) → Brave → DuckDuckGo fallback
+- **Notes** — save/get/list/delete notes in SQLite
+- **Tasks** — create/update/list tasks with priority and status
+- **Calculator** — safe math expression evaluator
+- **File reader** — read local text files (max 100KB)
+- **Memory tool** — model can save/search memories directly
+- **Live spinner** — animated indicator while model thinks
+- **Input lock** — keystrokes blocked during streaming (no mix-in glitch)
+- **Personalized persona** — casual tone, friend-style replies
 
-**Not yet in v0.1.0** (see roadmap): memory persistence, persona profiles, web UI, plugins, MCP, voice.
+Previous milestones:
+- **v0.3** — persona profiles (`/coder`, `/researcher`, `/tutor`), hot-reload config
+- **v0.2** — SQLite memory, facts persist across sessions
+- **v0.1** — Ollama streaming, native + XML tool call formats, CLI, logging
 
 ---
 
@@ -24,22 +30,29 @@ Run Ollama locally, swap to Claude or GPT with one env var. No cloud required.
 
 | Version | What ships |
 |---------|-----------|
-| **v0.2** | SQLite memory (M2) — facts saved across sessions |
-| **v0.3** | Persona profiles (M3) — `/coder`, `/researcher`, `/tutor` |
-| **v0.4** | Tool system (M4) — web search, file ops, code execution |
-| **v0.5** | All API providers (M5) — Anthropic, OpenAI, Groq, Gemini, Mistral |
-| **v0.6** | Web UI (M6) — browser chat interface |
-| **v0.7** | Setup wizard (M7) — guided first-run |
-| **v0.8** | Plugins (M8) — weather, GitHub, calendar |
-| **v0.9** | MCP server support (M9) |
-| **v1.0** | Semantic memory (M10) + voice (M11) |
+| ~~**v0.1**~~ | Core — Ollama streaming, CLI, logging |
+| ~~**v0.2**~~ | SQLite memory — facts saved across sessions |
+| ~~**v0.3**~~ | Persona profiles — `/coder`, `/researcher`, `/tutor` |
+| ~~**v0.4**~~ | Tool system — web search, notes, tasks, calculator, file reader |
+| **v0.5** | All API providers — Anthropic, OpenAI, Groq, Gemini, Mistral |
+| **v0.6** | Web UI — browser chat interface |
+| **v0.7** | Setup wizard — guided first-run |
+| **v0.8** | Plugins — weather, GitHub, calendar |
+| **v0.9** | MCP server support |
+| **v1.0** | Semantic memory (embeddings) + voice |
 
 ---
 
 ## Prerequisites
 
 - [Node.js 20+](https://nodejs.org/)
-- [Ollama](https://ollama.ai/) running locally (default) **or** an API key for another provider
+- [Ollama](https://ollama.ai/) running locally **or** an API key for another provider
+
+Recommended local models (16GB RAM):
+```
+ollama pull qwen2.5:14b    # primary — tools, coding, reasoning
+ollama pull gemma3:12b     # secondary — chat, long context
+```
 
 ---
 
@@ -47,43 +60,73 @@ Run Ollama locally, swap to Claude or GPT with one env var. No cloud required.
 
 ```bash
 # 1. Clone
-git clone https://github.com/yourusername/personal-ai.git
-cd personal-ai
+git clone https://github.com/Nandansai08/PersonalAi.git
+cd PersonalAi
 
 # 2. Install
 npm install
 
 # 3. Configure
 cp .env.example .env
-# Edit .env — uncomment and fill only what you use
+# Edit .env — set SERPER_API_KEY for web search (free at serper.dev)
 
-# 4. Pull a model (Ollama users)
+# 4. Pull a model
 ollama pull qwen2.5:14b
 
 # 5. Start
 npm start
-
-# 6. Chat
-[qwen2.5:14b] > Hello!
-
-# 7. Exit
-[qwen2.5:14b] > /exit
 ```
 
-**Using a cloud provider instead?** Set `ANTHROPIC_API_KEY` (or equivalent) in `.env`. Provider switching is not yet wired to the factory in v0.1.0 — it always creates an OllamaProvider. Full provider support ships in v0.5.
+---
+
+## Web Search Setup
+
+Web search works out of the box with a free Serper key (no credit card):
+
+1. Sign up at [serper.dev](https://serper.dev) — 2500 free searches/month
+2. Copy your API key
+3. Add to `.env`: `SERPER_API_KEY=your_key_here`
+
+Falls back to Brave Search (if `BRAVE_SEARCH_API_KEY` set), then DuckDuckGo.
 
 ---
 
 ## CLI Commands
 
-| Command   | Description |
-|-----------|-------------|
-| `/exit`   | Quit |
-| `/clear`  | Clear conversation history |
+| Command | Description |
+|---------|-------------|
+| `/exit` | Quit |
+| `/clear` | Clear conversation history |
 | `/models` | List available models |
 | `/health` | Check provider connectivity |
-| `/logs`   | Show log file path |
-| `/help`   | Show all commands |
+| `/logs` | Show log file path |
+| `/tools` | List registered tools |
+| `/memory` | Memory stats |
+| `/memory list` | Recent memories |
+| `/memory search <q>` | Search memories |
+| `/memory save <type> <content>` | Save a memory |
+| `/profile` | Show active profile |
+| `/profile list` | All profiles |
+| `/profile <name>` | Switch profile |
+| `/coder` | Switch to coder profile |
+| `/research` | Switch to researcher profile |
+| `/tutor` | Switch to tutor profile |
+| `/help` | Show all commands |
+
+---
+
+## Configuration
+
+Key `.env` settings:
+
+```env
+OLLAMA_MODEL=qwen2.5:14b      # model to use
+OLLAMA_NUM_CTX=4096            # context window (reduce for speed)
+OLLAMA_NUM_PREDICT=1024        # max output tokens
+SERPER_API_KEY=                # web search (free at serper.dev)
+```
+
+Persona and profiles are in `config/persona.yaml` and `config/profiles.yaml` — hot-reloaded on save.
 
 ---
 

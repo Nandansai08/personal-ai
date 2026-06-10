@@ -68,7 +68,7 @@ function buildMarkdownPrompt(
   const sections: string[] = [
     `# ${persona.name}`,
     `You are ${persona.name}, a personal AI assistant.${userName}${tone}`,
-    `Today: ${dateStr}`,
+    `Today: ${dateStr}. Always respond in the same language the user writes in. If the user writes in English, respond in English only.`,
   ]
 
   if (persona.expertise.length > 0) {
@@ -109,7 +109,7 @@ function buildGemma3Prompt(
 ): string {
   let n = 1
   const lines: string[] = [
-    `You are ${persona.name}, a personal AI assistant. Today: ${dateStr}.`,
+    `You are ${persona.name}, a personal AI assistant. Today: ${dateStr}. Always respond in the same language the user writes in.`,
   ]
 
   if (persona.user_name) lines.push(`${n++}. User name: ${persona.user_name}.`)

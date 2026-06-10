@@ -5,6 +5,7 @@ import type { AssistantEngine } from '../core/assistant.js'
 import type { LLMProvider } from '../providers/interface.js'
 import type { LongTermMemory } from '../memory/long-term.js'
 import type { ProfileManager } from '../persona/profiles.js'
+import type { ToolRegistry } from '../tools/registry.js'
 import { logger } from '../core/logger.js'
 import { ConversationContext } from '../core/context.js'
 
@@ -32,6 +33,7 @@ const HELP = `
   ${chalk.cyan('/coder')}                 Switch to coder profile
   ${chalk.cyan('/research')}              Switch to researcher profile
   ${chalk.cyan('/tutor')}                 Switch to tutor profile
+  ${chalk.cyan('/tools')}                 List registered tools
   ${chalk.cyan('/help')}                  Show this message
 `
 
@@ -130,6 +132,7 @@ async function handleCommand(
   context: ConversationContext,
   memory: LongTermMemory | undefined,
   profileManager: ProfileManager | undefined,
+  registry?: ToolRegistry,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
@@ -175,6 +178,14 @@ async function handleCommand(
     case '/coder':    profileManager && switchProfile('coder', profileManager);      break
     case '/research': profileManager && switchProfile('researcher', profileManager); break
     case '/tutor':    profileManager && switchProfile('tutor', profileManager);      break
+    case '/tools':
+      if (!registry || registry.count() === 0) { console.log(chalk.dim('No tools registered.')); break }
+      console.log(chalk.bold(`\nRegistered tools (${registry.count()}):`))
+      for (const t of registry.getAll()) {
+        console.log(`  ${chalk.cyan(t.definition.name)} — ${t.definition.description}`)
+      }
+      console.log()
+      break
     case '/help':
       console.log(HELP)
       break
@@ -189,6 +200,7 @@ export async function startCLI(
   context: ConversationContext,
   memory?: LongTermMemory,
   profileManager?: ProfileManager,
+  registry?: ToolRegistry,
 ): Promise<void> {
   console.log(BANNER)
 
@@ -207,6 +219,9 @@ export async function startCLI(
     const stats = memory.getStats()
     console.log(chalk.dim(`  Memory: ${stats.total} stored`))
   }
+  if (registry && registry.count() > 0) {
+    console.log(chalk.dim(`  Tools: ${registry.count()} registered`))
+  }
   if (profileManager) {
     const p = profileManager.getActive()
     console.log(chalk.dim(`  Profile: ${p.name} — ${p.description}\n`))
@@ -219,30 +234,67 @@ export async function startCLI(
   }
   refreshPrompt()
 
+  let busy = false
+
   rl.on('line', async (line) => {
+    if (busy) return
+
     const input = line.trim()
     if (!input) { refreshPrompt(); return }
 
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), provider, context, memory, profileManager)
+      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry)
       refreshPrompt()
       return
     }
 
+    busy = true
+    rl.pause()
+
+    // Spinner while waiting for first token
+    const frames = ['⠋', '⠙', '⠸', '⠴', '⠦', '⠇']
+    let frame = 0
     process.stdout.write(chalk.dim('\nAssistant: '))
+    const spinner = setInterval(() => {
+      process.stdout.write(`\r${chalk.dim('Assistant: ')}${chalk.dim(frames[frame++ % frames.length]!)}`)
+    }, 100)
+
+    let firstToken = true
+    const clearSpinner = () => {
+      if (firstToken) {
+        clearInterval(spinner)
+        process.stdout.write(`\r${chalk.dim('Assistant: ')}`)
+        firstToken = false
+      }
+    }
+
     try {
       for await (const chunk of engine.chat(input)) {
-        if (chunk.type === 'text') process.stdout.write(chunk.delta)
-        else if (chunk.type === 'error') console.error(chalk.red(`\nError: ${chunk.message}`))
-        else if (chunk.type === 'done' && chunk.usage) {
+        if (chunk.type === 'text') {
+          clearSpinner()
+          process.stdout.write(chunk.delta)
+        } else if (chunk.type === 'tool_call') {
+          clearSpinner()
+          process.stdout.write(chalk.cyan(`\n  ⟳ ${chunk.name}…`))
+        } else if (chunk.type === 'tool_result') {
+          process.stdout.write(chalk.green(' ✓\n'))
+        } else if (chunk.type === 'error') {
+          clearSpinner()
+          console.error(chalk.red(`\nError: ${chunk.message}`))
+        } else if (chunk.type === 'done' && chunk.usage) {
+          clearSpinner()
           console.log(chalk.dim(`\n  [${chunk.usage.input}in / ${chunk.usage.output}out tokens]`))
         }
       }
+      clearSpinner()
     } catch (err) {
+      clearSpinner()
       logger.error('cli', 'chat error', err)
       console.error(chalk.red('\nChat failed — check /logs for details.'))
     }
     console.log()
+    busy = false
+    rl.resume()
     refreshPrompt()
   })
 

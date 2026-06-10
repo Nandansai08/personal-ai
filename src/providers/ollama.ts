@@ -70,7 +70,13 @@ function* processStreamChunk(chunk: OllamaStreamChunk, useXml: boolean): Generat
   if (!msg) return
   if (msg.tool_calls?.length) {
     for (const tc of msg.tool_calls) {
-      yield { type: 'tool_call', id: `tc_${Date.now()}`, name: tc.function.name, arguments: tc.function.arguments }
+      const name = tc.function?.name ?? (tc as unknown as Record<string, unknown>)['name'] as string ?? ''
+      let args: unknown = tc.function?.arguments ?? {}
+      // Ollama sometimes returns arguments as a JSON string
+      if (typeof args === 'string') {
+        try { args = JSON.parse(args) } catch { args = { raw: args } }
+      }
+      yield { type: 'tool_call', id: `tc_${Date.now()}`, name, arguments: args }
     }
   } else if (msg.content) {
     if (useXml) { yield* parseXmlChunks(msg.content) }
@@ -114,12 +120,14 @@ export class OllamaProvider implements LLMProvider {
 
   private baseUrl:     string
   private numCtx:      number
+  private numPredict:  number
   private temperature: number
 
   constructor() {
     this.baseUrl     = process.env['OLLAMA_BASE_URL']    ?? 'http://localhost:11434'
     this.model       = process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b'
-    this.numCtx      = parseInt(process.env['OLLAMA_NUM_CTX']     ?? '8192', 10)
+    this.numCtx      = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '4096', 10)
+    this.numPredict  = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
     this.temperature = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
     this.supportsToolUse = isNativeToolModel(this.model)
   }
@@ -133,9 +141,14 @@ export class OllamaProvider implements LLMProvider {
       model:    this.model,
       messages: buildMessages(request, useXml),
       stream:   true,
-      options:  { num_ctx: this.numCtx, temperature: request.temperature ?? this.temperature },
+      options:  { num_ctx: this.numCtx, num_predict: this.numPredict, temperature: request.temperature ?? this.temperature },
     }
-    if (useNative && request.tools) body['tools'] = request.tools
+    if (useNative && request.tools) {
+      body['tools'] = request.tools.map(t => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      }))
+    }
 
     let response: Response
     try {
