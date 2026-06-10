@@ -77,6 +77,7 @@ export class AssistantEngine {
         systemPrompt,
         tools:        nativeTools,
         temperature,
+        model:        selectedModel,
       }
 
       for await (const chunk of this.provider.chat(request)) {

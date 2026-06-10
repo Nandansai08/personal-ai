@@ -52,7 +52,7 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
     }
 
     const params: OpenAI.ChatCompletionCreateParamsStreaming = {
-      model:       this.model,
+      model:       request.model ?? this.model,
       messages,
       temperature: request.temperature ?? this.temperature,
       stream:      true,

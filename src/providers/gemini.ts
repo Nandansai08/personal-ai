@@ -34,7 +34,7 @@ export class GeminiProvider implements LLMProvider {
     const startMs = Date.now()
 
     const genModel = this.client.getGenerativeModel({
-      model:           this.model,
+      model:           request.model ?? this.model,
       systemInstruction: request.systemPrompt,
       generationConfig: { temperature: request.temperature ?? this.temperature },
       ...(request.tools?.length ? {

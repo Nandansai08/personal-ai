@@ -80,7 +80,7 @@ async function main(): Promise<void> {
 
   const modelManager = provider.name === 'ollama'
     ? new ModelManager(defaultModelsConfig(), profileManager)
-    : undefined
+    : new ModelManager({ default: provider.model, tasks: {} }, profileManager)
 
   const engine = new AssistantEngine(provider, getSystemPrompt, memory, toolRegistry, profileManager, context, modelManager)
 

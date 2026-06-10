@@ -32,6 +32,7 @@ export interface ChatRequest {
   temperature?: number
   maxTokens?: number
   systemPrompt?: string
+  model?: string
 }
 
 export interface TokenUsage {

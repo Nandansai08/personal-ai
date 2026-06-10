@@ -63,7 +63,7 @@ async function main(): Promise<void> {
           quick:       chatModel,
         },
       }, profileManager)
-    : undefined
+    : new ModelManager({ default: provider.model, tasks: {} }, profileManager)
 
   // Pre-load both models so first request is fast
   if ('warmUp' in provider && typeof (provider as Record<string, unknown>)['warmUp'] === 'function') {

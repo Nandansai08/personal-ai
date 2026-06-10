@@ -49,7 +49,7 @@ export class MistralProvider implements LLMProvider {
     }
 
     const body: Record<string, unknown> = {
-      model:       this.model,
+      model:       request.model ?? this.model,
       messages,
       temperature: request.temperature ?? this.temperature,
       stream:      true,

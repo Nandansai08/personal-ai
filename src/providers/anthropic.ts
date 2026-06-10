@@ -51,7 +51,7 @@ export class AnthropicProvider implements LLMProvider {
     }
 
     const params: Anthropic.MessageStreamParams = {
-      model:       this.model,
+      model:       request.model ?? this.model,
       max_tokens:  request.maxTokens ?? this.maxTokens,
       temperature: request.temperature ?? this.temperature,
       messages,
