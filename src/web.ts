@@ -72,16 +72,16 @@ async function main(): Promise<void> {
     if (provider.name === 'ollama' && chatModel !== defaultModel) void warm.warmUp(chatModel)
   }
 
-  const port = parseInt(process.env['PORT'] ?? '3000', 10)
+  const preferred = parseInt(process.env['PORT'] ?? '3000', 10)
 
-  createWebServer({
+  const { port } = await createWebServer({
     provider,
     memory,
     profileManager,
     registry: toolRegistry,
     modelManager,
     personaPath: path.join(CONFIG, 'persona.yaml'),
-    port,
+    port: preferred,
   })
 
   const url = getServerUrl(port)

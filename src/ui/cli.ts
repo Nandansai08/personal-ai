@@ -162,7 +162,7 @@ async function handleCommand(
   profileManager: ProfileManager | undefined,
   registry?: ToolRegistry,
   modelManager?: ModelManager,
-  startWeb?: () => string,
+  startWeb?: () => Promise<string>,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
@@ -223,7 +223,7 @@ async function handleCommand(
     case '/web':
       if (!startWeb) { console.log(chalk.yellow('Web UI not configured.')); break }
       try {
-        const url = startWeb()
+        const url = await startWeb()
         console.log(chalk.green(`✓ Web UI running at ${chalk.bold(url)}`))
         console.log(chalk.dim(`  Open in browser: ${url}`))
       } catch (e) {
@@ -246,7 +246,7 @@ export async function startCLI(
   profileManager?: ProfileManager,
   registry?: ToolRegistry,
   modelManager?: ModelManager,
-  startWeb?: () => string,
+  startWeb?: () => Promise<string>,
 ): Promise<void> {
   console.log(BANNER)
 

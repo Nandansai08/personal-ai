@@ -85,21 +85,24 @@ async function main(): Promise<void> {
   })
 
   let webServer: import('node:http').Server | undefined
+  let webPort: number | undefined
 
-  const startWebFn = (): string => {
-    const port = parseInt(process.env['PORT'] ?? '3000', 10)
+  const startWebFn = async (): Promise<string> => {
     if (!webServer) {
-      webServer = createWebServer({
+      const preferred = parseInt(process.env['PORT'] ?? '3000', 10)
+      const result = await createWebServer({
         provider,
         memory,
         profileManager,
         registry: toolRegistry,
         modelManager,
         personaPath: path.join(CONFIG, 'persona.yaml'),
-        port,
+        port: preferred,
       })
+      webServer = result.server
+      webPort   = result.port
     }
-    return getServerUrl(port)
+    return getServerUrl(webPort!)
   }
 
   await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn)
