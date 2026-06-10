@@ -1,5 +1,8 @@
 // MIT License — personal-ai
 import readline from 'node:readline'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 import chalk from 'chalk'
 import type { AssistantEngine } from '../core/assistant.js'
 import type { LLMProvider } from '../providers/interface.js'
@@ -12,7 +15,7 @@ import { ConversationContext } from '../core/context.js'
 
 const BANNER = `
 ${chalk.cyan('╔═══════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.5.0')}                   ${chalk.cyan('║')}
+${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.6.0')}                   ${chalk.cyan('║')}
 ${chalk.cyan('║')}  ${chalk.dim('Local-first. Any model.')}              ${chalk.cyan('║')}
 ${chalk.cyan('╚═══════════════════════════════════════╝')}
 `
@@ -38,6 +41,7 @@ const HELP = `
   ${chalk.cyan('/research')}              Switch to researcher profile
   ${chalk.cyan('/tutor')}                 Switch to tutor profile
   ${chalk.cyan('/tools')}                 List registered tools
+  ${chalk.cyan('/cost')}                  Show session token usage and estimated cost
   ${chalk.cyan('/web')}                   Start web UI server (default port 3000)
   ${chalk.cyan('/help')}                  Show this message
 `
@@ -121,6 +125,21 @@ function handleProfileCmd(parts: string[], profileManager: ProfileManager): void
   switchProfile(sub, profileManager)
 }
 
+/** Maps raw provider error messages to actionable user-facing strings. */
+function friendlyError(msg: string): string {
+  if (/401|unauthorized|invalid.*key|api.?key/i.test(msg))
+    return 'Invalid API key. Check PROVIDER_API_KEY in .env'
+  if (/ECONNREFUSED|ENOTFOUND|connect.*ollama/i.test(msg))
+    return 'Ollama not running. Run: ollama serve'
+  if (/model.*not found|pull.*model|does not exist/i.test(msg)) {
+    const m = msg.match(/["']([^"']+)["']/)
+    return `Model ${m?.[1] ?? 'unknown'} not installed. Run: ollama pull ${m?.[1] ?? '<model>'}`
+  }
+  if (/429|rate.?limit|too many requests/i.test(msg))
+    return 'Rate limit hit. Wait 60s or switch providers with /switch'
+  return msg
+}
+
 function switchProfile(name: string, profileManager: ProfileManager): void {
   try {
     profileManager.setActive(name)
@@ -163,6 +182,7 @@ async function handleCommand(
   registry?: ToolRegistry,
   modelManager?: ModelManager,
   startWeb?: () => Promise<string>,
+  getCost?: () => string,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
@@ -198,9 +218,23 @@ async function handleCommand(
           : chalk.red(`✗ ${h.error ?? 'unhealthy'}`))
       }
       break
-    case '/logs':
-      console.log(chalk.dim(logger.getLogPath()))
+    case '/cost':
+      console.log(getCost ? getCost() : chalk.yellow('No session data yet.'))
       break
+    case '/logs': {
+      const logPath = logger.getLogPath()
+      console.log(chalk.dim(logPath))
+      try {
+        const lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean)
+        const errors = lines.filter(l => /error/i.test(l)).slice(-5)
+        if (errors.length) {
+          console.log(chalk.dim('\nRecent errors:'))
+          for (const l of errors) console.log(chalk.red(`  ${l.slice(0, 120)}`))
+        }
+      } catch { /* log file may not exist yet */ }
+      console.log()
+      break
+    }
     case '/memory':
       if (!memory) { console.log(chalk.yellow('Memory not enabled.')); break }
       await handleMemoryCmd(parts, memory)
@@ -273,6 +307,47 @@ export async function startCLI(
     console.log(chalk.dim(`  Profile: ${p.name} — ${p.description}\n`))
   }
 
+  // ── session token tracking ──────────────────────────────────────────
+  const sessTokens = { input: 0, output: 0 }
+  const PRICE: Record<string, [number, number]> = {
+    anthropic: [3, 15],
+    openai:    [5, 15],
+    groq:      [0.59, 0.79],
+  }
+
+  const getCost = (): string => {
+    const inK  = sessTokens.input
+    const outK = sessTokens.output
+    if (inK === 0 && outK === 0) return chalk.dim('No tokens used this session.')
+    const prices = PRICE[provider.name]
+    if (!prices) {
+      return chalk.cyan(`Session: ${inK.toLocaleString()} in / ${outK.toLocaleString()} out | `) + chalk.green('FREE (local)')
+    }
+    const est = (inK / 1_000_000) * prices[0] + (outK / 1_000_000) * prices[1]
+    return chalk.cyan(`Session: ${inK.toLocaleString()} in / ${outK.toLocaleString()} out | `) +
+           chalk.yellow(`Est. $${est.toFixed(4)}`)
+  }
+
+  const saveSession = (): void => {
+    const sessDir = path.join(
+      os.homedir(), '.personal-ai', 'sessions',
+    )
+    try {
+      fs.mkdirSync(sessDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(sessDir, `session-${Date.now()}.json`),
+        JSON.stringify({ messages: context.getMessages(), savedAt: new Date().toISOString() }, null, 2),
+      )
+      // keep max 10 sessions
+      const files = fs.readdirSync(sessDir)
+        .filter(f => f.startsWith('session-'))
+        .sort()
+      for (const old of files.slice(0, Math.max(0, files.length - 10))) {
+        fs.unlinkSync(path.join(sessDir, old))
+      }
+    } catch { /* non-critical */ }
+  }
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
   const refreshPrompt = () => {
     rl.setPrompt(makePrompt(provider, profileManager, modelManager))
@@ -288,8 +363,18 @@ export async function startCLI(
     const input = line.trim()
     if (!input) { refreshPrompt(); return }
 
+    if (input === '/exit') {
+      const memCount = memory ? memory.getStats().total : 0
+      console.log(chalk.dim(`\nSession memories stored: ${memCount}`))
+      console.log(getCost())
+      saveSession()
+      console.log(chalk.dim('\nGoodbye.'))
+      rl.close()
+      process.exit(0)
+    }
+
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager, startWeb)
+      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager, startWeb, getCost)
       refreshPrompt()
       return
     }
@@ -330,9 +415,11 @@ export async function startCLI(
           refreshPrompt()
         } else if (chunk.type === 'error') {
           clearSpinner()
-          console.error(chalk.red(`\nError: ${chunk.message}`))
+          console.error(chalk.red(`\nError: ${friendlyError(chunk.message)}`))
         } else if (chunk.type === 'done' && chunk.usage) {
           clearSpinner()
+          sessTokens.input  += chunk.usage.input
+          sessTokens.output += chunk.usage.output
           console.log(chalk.dim(`\n  [${chunk.usage.input}in / ${chunk.usage.output}out tokens]`))
         }
       }
@@ -340,7 +427,9 @@ export async function startCLI(
     } catch (err) {
       clearSpinner()
       logger.error('cli', 'chat error', err)
-      console.error(chalk.red('\nChat failed — check /logs for details.'))
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(chalk.red(`\n${friendlyError(msg)}`))
+      console.error(chalk.dim('  Run /logs for details.'))
     }
     console.log()
     busy = false

@@ -1,6 +1,7 @@
 // MIT License — personal-ai
 import 'dotenv/config'
 import path from 'node:path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { createProvider } from './providers/factory.js'
 import { ConversationContext } from './core/context.js'
@@ -10,6 +11,7 @@ import { loadPersona, loadProfiles, watchPersona, watchProfiles } from './person
 import { ProfileManager } from './persona/profiles.js'
 import { buildSystemPrompt, isGemma3Model } from './persona/system-prompt.js'
 import { startCLI } from './ui/cli.js'
+import { needsSetup, runSetupWizard } from './ui/setup.js'
 import { createWebServer, getServerUrl } from './ui/web/server.js'
 import { ModelManager, defaultModelsConfig } from './core/model-manager.js'
 import { eventBus } from './core/events.js'
@@ -29,6 +31,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CONFIG    = path.join(__dirname, '..', 'config')
 
 async function main(): Promise<void> {
+  const envPath = path.join(__dirname, '..', '.env')
+  if (needsSetup(envPath)) {
+    await runSetupWizard(envPath)
+    // re-load env after wizard writes .env
+    const { config } = await import('dotenv')
+    config({ path: envPath, override: true })
+  }
+
   // Load persona + profiles
   const persona        = loadPersona(path.join(CONFIG, 'persona.yaml'))
   const profilesCfg    = loadProfiles(path.join(CONFIG, 'profiles.yaml'))
