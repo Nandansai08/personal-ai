@@ -3,12 +3,12 @@ import 'dotenv/config'
 import { createProvider } from './providers/factory.js'
 import { ConversationContext } from './core/context.js'
 import { AssistantEngine } from './core/assistant.js'
+import { LongTermMemory } from './memory/long-term.js'
 import { startCLI } from './ui/cli.js'
 import { eventBus } from './core/events.js'
 import { logger } from './core/logger.js'
 
-// Keep side-effect import so logger auto-wires events
-void logger
+void logger // ensure event auto-wiring
 
 function getSystemPrompt(): string {
   return [
@@ -27,19 +27,21 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
+  const memory  = new LongTermMemory()
   const context = new ConversationContext()
-  const engine  = new AssistantEngine(provider, getSystemPrompt, context)
+  const engine  = new AssistantEngine(provider, getSystemPrompt, context, memory)
 
   process.on('SIGINT', () => {
     eventBus.emit('session_ended', {
       messageCount: context.messageCount,
       toolCallCount: context.getToolCallCount(),
     })
+    memory.close()
     console.log('\nBye.')
     process.exit(0)
   })
 
-  await startCLI(provider, engine, context)
+  await startCLI(provider, engine, context, memory)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
