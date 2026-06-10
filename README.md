@@ -66,8 +66,9 @@ cp .env.example .env
 **4. (Optional) Add a search key for web search**
 
 ```
-# Serper.dev — free 2500 queries/month, no card required
+# Primary: Serper.dev — free 2500 queries/month, no card required
 # https://serper.dev → get key → SERPER_API_KEY=your_key
+# Optional fallback: Brave Search → BRAVE_SEARCH_API_KEY=your_key
 ```
 
 **5. Customize your persona** (optional)
@@ -147,6 +148,8 @@ Copy `.env.example` to `.env`. Only configure what you use.
 | `SERPER_API_KEY` | Primary — [serper.dev](https://serper.dev), free 2500/month |
 | `BRAVE_SEARCH_API_KEY` | Fallback — [api.search.brave.com](https://api.search.brave.com), free 2000/month |
 
+Search order is Serper first, then Brave Search, then DuckDuckGo Instant Answers as a last resort.
+
 ---
 
 ## Persona (`config/persona.yaml`)
@@ -202,6 +205,8 @@ Switch profile mid-session — takes effect on the next message.
 | `/model` | Show current model routing (mode + task mappings) |
 | `/model <name>` | Pin to a specific model (e.g. `/model gemma3:4b`) |
 | `/model auto` | Resume automatic task-based model routing |
+| `/switch` | Show provider-switch instructions |
+| `/switch <provider>` | Show required `.env` settings for a provider switch |
 | **Profiles** | |
 | `/profile` | Show active profile |
 | `/profile list` | List all profiles |
@@ -340,7 +345,7 @@ npm run web
 |---|---|
 | **Chat** | Streaming chat with message avatars, tool call badges, model-switch pills |
 | **Code Workspace** | Editor with line numbers, file tabs, AI assistant panel |
-| **Research** | Brave Search integration, memory panel, Knowledge Graph SVG |
+| **Research** | Web search integration, memory panel, Knowledge Graph SVG |
 | **Memory / Vault** | Vault Index — browse, search, export memories; Vector Topology graph |
 | **Settings** | Provider cards with status badges, Hardware Context, task routing table |
 
@@ -372,7 +377,7 @@ Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launc
 |---|---|---|
 | v0.5 | Done | 8 providers, ModelManager auto-routing, 4 agent profiles |
 | v0.6 | Done | Web UI — Express + WebSocket streaming chat in browser |
-| v0.7 | Planned | Setup wizard, onboarding polish, better error messages |
+| v0.7 | Done | Setup wizard, `/cost` tracking, model-pin for all providers, friendly errors, session save |
 | v0.8 | Planned | Plugin system — weather, GitHub, calendar plugins |
 | v0.9 | Planned | MCP support — connect any MCP server over stdio |
 | v1.1 | Planned | Semantic memory with sqlite-vec embeddings |

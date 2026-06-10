@@ -15,7 +15,7 @@ import { ConversationContext } from '../core/context.js'
 
 const BANNER = `
 ${chalk.cyan('╔═══════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.6.0')}                   ${chalk.cyan('║')}
+${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.7.0')}                   ${chalk.cyan('║')}
 ${chalk.cyan('║')}  ${chalk.dim('Local-first. Any model.')}              ${chalk.cyan('║')}
 ${chalk.cyan('╚═══════════════════════════════════════╝')}
 `
@@ -30,6 +30,8 @@ const HELP = `
   ${chalk.cyan('/model')}                 Show current model routing
   ${chalk.cyan('/model')} <name>          Pin to a specific model
   ${chalk.cyan('/model auto')}            Resume auto task-based routing
+  ${chalk.cyan('/switch')}                Show provider-switch instructions
+  ${chalk.cyan('/switch')} <provider>     Show env vars for a provider switch
   ${chalk.cyan('/memory')}                Memory stats
   ${chalk.cyan('/memory list')}           List recent memories
   ${chalk.cyan('/memory search')} <q>     Search memories
@@ -136,8 +138,46 @@ function friendlyError(msg: string): string {
     return `Model ${m?.[1] ?? 'unknown'} not installed. Run: ollama pull ${m?.[1] ?? '<model>'}`
   }
   if (/429|rate.?limit|too many requests/i.test(msg))
-    return 'Rate limit hit. Wait 60s or switch providers with /switch'
+    return 'Rate limit hit. Wait 60s or run /switch for provider-switch instructions'
   return msg
+}
+
+const PROVIDER_SWITCH_HELP: Record<string, string[]> = {
+  ollama: [
+    'PROVIDER=ollama',
+    'OLLAMA_BASE_URL=http://localhost:11434',
+    'OLLAMA_MODEL=qwen2.5:14b',
+  ],
+  anthropic: ['PROVIDER=anthropic', 'ANTHROPIC_API_KEY=...', 'ANTHROPIC_MODEL=claude-sonnet-4-6'],
+  openai:    ['PROVIDER=openai',    'OPENAI_API_KEY=...',    'OPENAI_MODEL=gpt-4o-mini'],
+  groq:      ['PROVIDER=groq',      'GROQ_API_KEY=...',      'GROQ_MODEL=llama-3.3-70b-versatile'],
+  gemini:    ['PROVIDER=gemini',    'GEMINI_API_KEY=...',    'GEMINI_MODEL=gemini-2.0-flash'],
+  mistral:   ['PROVIDER=mistral',   'MISTRAL_API_KEY=...',   'MISTRAL_MODEL=mistral-large-latest'],
+  lmstudio:  ['PROVIDER=lmstudio',  'LMSTUDIO_BASE_URL=http://localhost:1234/v1', 'LMSTUDIO_MODEL=local-model'],
+  together:  ['PROVIDER=together',  'TOGETHER_API_KEY=...',  'TOGETHER_MODEL=meta-llama/Llama-3.3-70B-Instruct-Turbo'],
+}
+
+function handleSwitchCmd(parts: string[]): void {
+  const provider = parts[1]?.toLowerCase()
+  const names = Object.keys(PROVIDER_SWITCH_HELP)
+
+  if (!provider) {
+    console.log(chalk.bold('\nProvider switching:'))
+    console.log('  Edit .env, set PROVIDER, then restart PersonalAI.')
+    console.log(`  Providers: ${names.map(n => chalk.cyan(n)).join(', ')}`)
+    console.log(`  Example: ${chalk.cyan('/switch ollama')}\n`)
+    return
+  }
+
+  const lines = PROVIDER_SWITCH_HELP[provider]
+  if (!lines) {
+    console.log(chalk.yellow(`Unknown provider "${provider}". Valid: ${names.join(', ')}`))
+    return
+  }
+
+  console.log(chalk.bold(`\nSwitch to ${provider}:`))
+  for (const line of lines) console.log(`  ${line}`)
+  console.log(chalk.dim('  Restart PersonalAI after editing .env.\n'))
 }
 
 function switchProfile(name: string, profileManager: ProfileManager): void {
@@ -209,6 +249,9 @@ async function handleCommand(
     case '/model':
       if (!modelManager) { console.log(chalk.dim(`Current model: ${provider.model}`)); break }
       handleModelCmd(parts, modelManager)
+      break
+    case '/switch':
+      handleSwitchCmd(parts)
       break
     case '/health':
       if (provider.healthCheck) {

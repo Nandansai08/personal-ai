@@ -1,6 +1,6 @@
 {
   "name": "personal-ai",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "description": "Personal AI assistant — any model, local or cloud",
   "type": "module",
   "scripts": {
