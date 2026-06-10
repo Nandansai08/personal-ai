@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --loader ts-node/esm src/index.ts",
     "dev": "node --watch --loader ts-node/esm src/index.ts",
+    "web": "node --loader ts-node/esm src/web.ts",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -14,13 +15,19 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@google/generative-ai": "^0.24.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/ws": "^8.18.1",
     "better-sqlite3": "^12.10.0",
     "chalk": "^5.3.0",
     "chokidar": "^5.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.0",
+    "express": "^5.2.1",
     "js-yaml": "^4.2.0",
     "openai": "^6.42.0",
     "uuid": "^14.0.0",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

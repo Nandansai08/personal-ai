@@ -38,6 +38,7 @@ const HELP = `
   ${chalk.cyan('/research')}              Switch to researcher profile
   ${chalk.cyan('/tutor')}                 Switch to tutor profile
   ${chalk.cyan('/tools')}                 List registered tools
+  ${chalk.cyan('/web')}                   Start web UI server (default port 3000)
   ${chalk.cyan('/help')}                  Show this message
 `
 
@@ -161,6 +162,7 @@ async function handleCommand(
   profileManager: ProfileManager | undefined,
   registry?: ToolRegistry,
   modelManager?: ModelManager,
+  startWeb?: () => string,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
@@ -218,6 +220,16 @@ async function handleCommand(
       }
       console.log()
       break
+    case '/web':
+      if (!startWeb) { console.log(chalk.yellow('Web UI not configured.')); break }
+      try {
+        const url = startWeb()
+        console.log(chalk.green(`✓ Web UI running at ${chalk.bold(url)}`))
+        console.log(chalk.dim(`  Open in browser: ${url}`))
+      } catch (e) {
+        console.log(chalk.red(`Failed to start web: ${String(e)}`))
+      }
+      break
     case '/help':
       console.log(HELP)
       break
@@ -234,6 +246,7 @@ export async function startCLI(
   profileManager?: ProfileManager,
   registry?: ToolRegistry,
   modelManager?: ModelManager,
+  startWeb?: () => string,
 ): Promise<void> {
   console.log(BANNER)
 
@@ -276,7 +289,7 @@ export async function startCLI(
     if (!input) { refreshPrompt(); return }
 
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager)
+      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager, startWeb)
       refreshPrompt()
       return
     }

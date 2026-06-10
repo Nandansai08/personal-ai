@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PersonalAI</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #0a0a0a;
+  --surface:       #111111;
+  --surface-2:     #181818;
+  --surface-3:     #1e1e1e;
+  --surface-4:     #242424;
+  --border:        #2a2a2a;
+  --border-subtle: #1d1d1d;
+  --text:          #e2e2e2;
+  --text-dim:      #888;
+  --text-muted:    #444;
+  --accent:        #7c3aed;
+  --accent-dim:    rgba(124,58,237,.13);
+  --accent-border: rgba(124,58,237,.32);
+  --accent-glow:   rgba(124,58,237,.08);
+  --bubble-user:   #5b21b6;
+  --bubble-ai:     #141414;
+  --green:         #22c55e;
+  --green-dim:     rgba(34,197,94,.11);
+  --yellow:        #f59e0b;
+  --yellow-dim:    rgba(245,158,11,.11);
+  --red:           #f87171;
+  --red-dim:       rgba(248,113,113,.11);
+  --blue:          #60a5fa;
+  --blue-dim:      rgba(96,165,250,.11);
+  --cyan:          #22d3ee;
+  --cyan-dim:      rgba(34,211,238,.11);
+  --orange:        #fb923c;
+  --orange-dim:    rgba(251,146,60,.11);
+  --radius:        10px;
+  --radius-sm:     7px;
+  --nav-w:         220px;
+  --topbar-h:      50px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 13.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+/* ── App layout ──────────────────────────────────────────────────────────── */
+#app { display: flex; height: 100dvh; overflow: hidden; }
+
+/* ── Nav sidebar ─────────────────────────────────────────────────────────── */
+#nav {
+  width: var(--nav-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0; overflow: hidden;
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+
+#nav-logo {
+  padding: 16px 14px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.logo-name {
+  font-size: 14px; font-weight: 700; letter-spacing: -0.3px;
+  color: var(--text); line-height: 1.2;
+}
+.logo-name span { color: var(--accent); }
+.logo-tag {
+  font-size: 10px; color: var(--text-muted); margin-top: 2px;
+  text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500;
+}
+
+#nav-items { flex: 1; padding: 8px 8px; display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  color: var(--text-dim); cursor: pointer; border: none; background: none;
+  font-size: 13px; font-family: inherit; text-align: left; width: 100%;
+  transition: all 0.13s;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--accent-dim); color: #c4b5fd; }
+.nav-item.active .nav-icon { color: var(--accent); }
+.nav-icon { width: 17px; height: 17px; flex-shrink: 0; }
+
+#nav-bottom { padding: 12px 8px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
+
+#new-session-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; padding: 8px 12px; border-radius: var(--radius-sm);
+  background: var(--accent); color: #fff; border: none;
+  font-size: 12.5px; font-weight: 500; font-family: inherit; cursor: pointer;
+  transition: opacity 0.15s;
+  margin-bottom: 12px;
+}
+#new-session-btn:hover { opacity: .85; }
+#new-session-btn svg { width: 13px; height: 13px; }
+
+.status-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; margin-bottom: 3px; border-radius: 6px;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-muted); flex-shrink: 0; transition: background 0.3s;
+}
+.status-dot.ok { background: var(--green); }
+.status-dot.err { background: var(--red); }
+.status-dot.loading { background: var(--yellow); animation: pulse-dot 1.5s ease infinite; }
+.status-label { font-size: 11.5px; color: var(--text-muted); flex: 1; }
+.status-value { font-size: 10.5px; color: var(--text-muted); }
+
+@keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+
+/* ── Views container ─────────────────────────────────────────────────────── */
+#views { flex: 1; display: flex; overflow: hidden; min-width: 0; }
+.view { display: none; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.view.active { display: flex; }
+
+/* ── Shared topbar ───────────────────────────────────────────────────────── */
+.topbar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  height: var(--topbar-h); padding: 0 14px;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.topbar-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.topbar-sub { font-size: 11.5px; color: var(--text-dim); }
+
+#hamburger {
+  display: none; cursor: pointer; background: none; border: none;
+  color: var(--text-dim); padding: 4px; border-radius: 6px;
+  transition: all 0.15s; flex-shrink: 0;
+}
+#hamburger:hover { color: var(--text); background: var(--surface-3); }
+#hamburger svg { display: block; width: 18px; height: 18px; }
+
+/* ── Profile tabs (in chat topbar) ───────────────────────────────────────── */
+#profile-tabs { display: flex; gap: 4px; }
+.profile-tab {
+  padding: 4px 11px; border-radius: 99px; font-size: 12px; cursor: pointer;
+  background: none; color: var(--text-dim); border: 1px solid transparent;
+  transition: all 0.13s; white-space: nowrap; font-family: inherit;
+}
+.profile-tab:hover { border-color: var(--border); color: var(--text); }
+.profile-tab.active { background: var(--accent-dim); color: #c4b5fd; border-color: var(--accent-border); }
+
+#ws-indicator { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+#ws-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-muted); transition: background 0.3s;
+}
+#ws-dot.connected { background: var(--green); }
+#ws-dot.error { background: var(--red); }
+#ws-model-label { font-size: 11px; color: var(--text-muted); }
+
+/* ── Chat layout: main + right panel ────────────────────────────────────── */
+#chat-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+#chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* ── Messages ────────────────────────────────────────────────────────────── */
+#messages {
+  flex: 1; overflow-y: auto; padding: 18px 20px 10px;
+  display: flex; flex-direction: column; gap: 12px;
+  position: relative;
+}
+
+#empty-state {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 32px; pointer-events: none;
+}
+#empty-state.hidden { display: none; }
+.empty-logo { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+.empty-logo span { color: var(--accent); }
+.empty-tagline { font-size: 12.5px; color: var(--text-dim); }
+.empty-suggestions {
+  display: flex; flex-wrap: wrap; gap: 7px; justify-content: center;
+  max-width: 440px; pointer-events: all;
+}
+.suggestion-chip {
+  padding: 6px 13px; border: 1px solid var(--border); border-radius: 99px;
+  background: var(--surface); color: var(--text-dim); font-size: 12px;
+  cursor: pointer; transition: all 0.13s; font-family: inherit;
+}
+.suggestion-chip:hover { border-color: var(--accent-border); color: var(--text); background: var(--accent-dim); }
+
+.msg-row { display: flex; flex-direction: column; gap: 3px; }
+.msg-row.user { align-items: flex-end; }
+.msg-row.assistant { align-items: flex-start; }
+
+.bubble {
+  max-width: 78%; padding: 9px 13px; border-radius: var(--radius);
+  line-height: 1.65; word-wrap: break-word;
+}
+.msg-row.user .bubble { background: var(--bubble-user); color: #fff; border-bottom-right-radius: 3px; }
+.msg-row.assistant .bubble { background: var(--bubble-ai); color: var(--text); border-bottom-left-radius: 3px; border: 1px solid var(--border); }
+
+.bubble code { background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: ui-monospace,'SF Mono','Cascadia Code',monospace; }
+.bubble .code-wrap { position: relative; margin: 8px 0; }
+.bubble pre { background: #0a0a0a; padding: 11px 13px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); }
+.bubble pre code { background: none; padding: 0; font-size: 11.5px; line-height: 1.6; }
+.copy-btn {
+  position: absolute; top: 6px; right: 6px;
+  padding: 2px 7px; font-size: 10px; border-radius: 4px;
+  background: var(--surface-3); border: 1px solid var(--border);
+  color: var(--text-dim); cursor: pointer; font-family: inherit;
+  transition: all 0.13s; opacity: 0;
+}
+.code-wrap:hover .copy-btn { opacity: 1; }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+.bubble strong { font-weight: 600; }
+.bubble em { font-style: italic; }
+.bubble h1, .bubble h2, .bubble h3 { font-weight: 600; margin: 9px 0 3px; }
+.bubble h1 { font-size: 1.05em; } .bubble h2 { font-size: 1em; } .bubble h3 { font-size: .93em; color: var(--text-dim); }
+.bubble ul, .bubble ol { padding-left: 18px; margin: 5px 0; }
+.bubble li { margin: 2px 0; }
+.bubble p { margin: 3px 0; }
+.bubble p:first-child { margin-top: 0; }
+.bubble p:last-child { margin-bottom: 0; }
+
+.bubble.streaming::after {
+  content: ''; display: inline-block; width: 2px; height: 0.83em;
+  background: var(--text-dim); margin-left: 2px; vertical-align: text-bottom;
+  animation: blink-cursor 0.8s step-end infinite;
+}
+@keyframes blink-cursor { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+.tool-call-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-radius: 99px;
+  background: var(--yellow-dim); border: 1px solid rgba(245,158,11,.28);
+  color: var(--yellow); font-size: 11px;
+  font-family: ui-monospace,'SF Mono',monospace; margin: 3px 0;
+}
+.tool-call-pill.done { background: var(--green-dim); border-color: rgba(34,197,94,.28); color: var(--green); }
+.tool-spinner { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+.done-check { width: 10px; height: 10px; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tool-result-wrap { margin: 3px 0 3px 2px; }
+.tool-result-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer; padding: 2px 0; }
+.tool-result-toggle:hover { color: var(--text-dim); }
+.toggle-chevron { transition: transform 0.13s; }
+.tool-result-toggle.open .toggle-chevron { transform: rotate(90deg); }
+.tool-result-body { display: none; margin-top: 4px; padding: 8px 10px; background: #080808; border-radius: 6px; border: 1px solid var(--border); font-size: 11px; color: var(--text-dim); white-space: pre-wrap; font-family: ui-monospace,'SF Mono',monospace; max-height: 200px; overflow-y: auto; line-height: 1.5; }
+.tool-result-body.open { display: block; }
+
+.model-switch-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: var(--blue-dim); border: 1px solid rgba(96,165,250,.22); color: var(--blue); font-size: 10.5px; align-self: center; margin: 2px 0; }
+
+.thinking-bubble { background: var(--bubble-ai); border: 1px solid var(--border); border-radius: var(--radius); border-bottom-left-radius: 3px; padding: 12px 15px; display: flex; align-items: center; gap: 6px; }
+.thinking-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: think-bounce 1.1s ease infinite; flex-shrink: 0; }
+.thinking-dot:nth-child(2) { animation-delay: 0.15s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.30s; }
+@keyframes think-bounce { 0%,60%,100% { transform: translateY(0); opacity:.3; } 30% { transform: translateY(-5px); opacity:.9; } }
+
+.usage-line { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+/* ── Input area ──────────────────────────────────────────────────────────── */
+#input-area { padding: 10px 14px 12px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+#input-row { display: flex; gap: 7px; align-items: flex-end; }
+#msg-input {
+  flex: 1; padding: 9px 12px; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 13.5px; font-family: inherit; resize: none; outline: none;
+  max-height: 150px; min-height: 42px; line-height: 1.5; transition: border-color 0.15s;
+}
+#msg-input:focus { border-color: var(--accent-border); }
+#msg-input::placeholder { color: var(--text-muted); }
+
+#send-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 0 15px; height: 42px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap; flex-shrink: 0; font-family: inherit;
+}
+#send-btn:hover:not(:disabled) { opacity: .85; }
+#send-btn:active:not(:disabled) { transform: scale(0.97); }
+#send-btn:disabled { opacity: .3; cursor: default; }
+#send-btn svg { width: 13px; height: 13px; }
+
+#status-bar { font-size: 10.5px; color: var(--text-muted); margin-top: 5px; height: 14px; }
+
+/* ── Live events panel ───────────────────────────────────────────────────── */
+#live-panel {
+  width: 290px; flex-shrink: 0;
+  background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+#live-panel.collapsed { width: 36px; }
+#live-panel-header {
+  height: var(--topbar-h); padding: 0 10px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--border-subtle); flex-shrink: 0;
+}
+#live-panel-toggle {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  padding: 4px; border-radius: 5px; flex-shrink: 0; transition: all 0.13s;
+  display: flex; align-items: center; justify-content: center;
+}
+#live-panel-toggle:hover { color: var(--text); background: var(--surface-3); }
+#live-panel-toggle svg { width: 15px; height: 15px; transition: transform 0.2s; }
+#live-panel.collapsed #live-panel-toggle svg { transform: rotate(180deg); }
+.live-panel-title { font-size: 11.5px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.07em; flex: 1; white-space: nowrap; overflow: hidden; }
+#live-panel.collapsed .live-panel-title { display: none; }
+#live-panel.collapsed .live-perf-section { display: none; }
+#live-panel.collapsed #live-events-list { display: none; }
+
+#live-events-list { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
+.live-event {
+  display: flex; gap: 7px; padding: 5px 7px; border-radius: 6px;
+  margin-bottom: 1px; align-items: flex-start; font-size: 11px;
+}
+.live-event:hover { background: var(--surface-2); }
+.live-event-time { color: var(--text-muted); font-family: ui-monospace,'SF Mono',monospace; flex-shrink: 0; font-size: 10px; margin-top: 1px; }
+.live-event-body { flex: 1; min-width: 0; }
+.live-event-type { font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; font-weight: 600; }
+.live-event-detail { color: var(--text-dim); font-size: 10.5px; margin-top: 1px; word-break: break-all; }
+.evt-model { color: var(--blue); }
+.evt-tool { color: var(--yellow); }
+.evt-result { color: var(--green); }
+.evt-switch { color: var(--cyan); }
+.evt-done { color: var(--accent); }
+.evt-error { color: var(--red); }
+.evt-conn { color: var(--green); }
+
+.live-perf-section { padding: 8px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
+.perf-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; }
+.perf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.perf-label { font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; width: 80px; }
+.perf-bar-wrap { flex: 1; height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.perf-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.5s; }
+.perf-bar.green { background: var(--green); }
+.perf-val { font-size: 10.5px; color: var(--text-dim); font-family: ui-monospace,'SF Mono',monospace; flex-shrink: 0; width: 38px; text-align: right; }
+.perf-stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.perf-stat-label { font-size: 10.5px; color: var(--text-muted); }
+.perf-stat-val { font-size: 10.5px; color: var(--text-dim); font-family: ui-monospace,'SF Mono',monospace; }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+#toast-container { position: fixed; bottom: 76px; right: 16px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 200; }
+.toast { padding: 8px 13px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--border); font-size: 12px; color: var(--text-dim); animation: toast-in 0.18s ease; pointer-events: all; box-shadow: 0 4px 20px rgba(0,0,0,.5); }
+@keyframes toast-in { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+
+/* ── Mobile overlay ──────────────────────────────────────────────────────── */
+#nav-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 9; backdrop-filter: blur(2px); }
+
+/* ── View: Code ──────────────────────────────────────────────────────────── */
+#view-code { flex-direction: row; }
+#code-tree { width: 200px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+#code-tree-header { padding: 12px 12px 8px; border-bottom: 1px solid var(--border-subtle); font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+#code-tree-list { flex: 1; overflow-y: auto; padding: 6px; }
+.tree-folder { padding: 4px 8px; border-radius: 5px; font-size: 12px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 7px; }
+.tree-folder:hover { background: var(--surface-2); color: var(--text); }
+.tree-file { padding: 3px 8px 3px 26px; border-radius: 5px; font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+.tree-file:hover { background: var(--surface-2); color: var(--text-dim); }
+.tree-ext { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+#code-editor { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#code-editor-area { flex: 1; background: var(--bg); color: var(--text); border: none; outline: none; resize: none; font-family: ui-monospace,'SF Mono','Cascadia Code',monospace; font-size: 12.5px; line-height: 1.7; padding: 16px; overflow: auto; tab-size: 2; }
+
+#code-assistant { width: 280px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+.panel-section { padding: 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+.panel-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; }
+
+/* ── View: Research ──────────────────────────────────────────────────────── */
+#view-research { flex-direction: column; }
+#research-topbar { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; display: flex; gap: 8px; align-items: center; }
+#research-search-input { flex: 1; padding: 9px 13px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; outline: none; font-family: inherit; transition: border-color 0.15s; }
+#research-search-input:focus { border-color: var(--accent-border); }
+#research-search-input::placeholder { color: var(--text-muted); }
+#research-search-btn { padding: 9px 16px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: opacity 0.15s; white-space: nowrap; }
+#research-search-btn:hover { opacity: .85; }
+.brave-badge { font-size: 10px; color: var(--text-muted); background: var(--surface-3); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); white-space: nowrap; }
+#research-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+#research-memories { width: 300px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+#research-memories-header { padding: 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+.r-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; }
+#research-mem-list { flex: 1; overflow-y: auto; padding: 6px; }
+.research-mem-item { padding: 8px 9px; border-radius: 7px; margin-bottom: 3px; cursor: pointer; border: 1px solid transparent; transition: all 0.13s; }
+.research-mem-item:hover { background: var(--surface-2); border-color: var(--border); }
+.research-mem-badges { display: flex; gap: 4px; margin-bottom: 4px; }
+.r-badge { font-size: 9.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; letter-spacing: 0.04em; }
+.r-badge.semantic { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(96,165,250,.22); }
+.r-badge.like { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(34,211,238,.22); }
+.r-badge.type { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+.research-mem-text { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+.research-mem-time { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+#research-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+#research-summary { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.research-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); }
+.research-result { padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; }
+.research-result-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.research-result-url { font-size: 11px; color: var(--blue); margin-bottom: 6px; word-break: break-all; }
+.research-result-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+
+/* ── View: Memory / Vault ────────────────────────────────────────────────── */
+#view-memory { flex-direction: column; }
+#memory-stats-bar { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; display: flex; gap: 12px; }
+.mem-stat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; min-width: 120px; }
+.mem-stat-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 5px; }
+.mem-stat-val { font-size: 20px; font-weight: 700; color: var(--text); font-family: ui-monospace,'SF Mono',monospace; line-height: 1; }
+.mem-stat-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+#memory-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+#memory-list-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+#memory-search-bar { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); display: flex; gap: 7px; align-items: center; flex-shrink: 0; }
+#vault-search { flex: 1; padding: 7px 11px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12.5px; outline: none; font-family: inherit; transition: border-color 0.15s; }
+#vault-search:focus { border-color: var(--accent-border); }
+#vault-search::placeholder { color: var(--text-muted); }
+.engine-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
+.engine-btn { padding: 5px 9px; font-size: 10.5px; font-weight: 600; cursor: pointer; background: none; border: none; color: var(--text-muted); font-family: inherit; transition: all 0.13s; }
+.engine-btn.active { background: var(--accent-dim); color: #c4b5fd; }
+#vault-list { flex: 1; overflow-y: auto; padding: 6px; }
+.vault-item { display: flex; gap: 10px; padding: 9px 10px; border-radius: 7px; margin-bottom: 2px; border: 1px solid transparent; cursor: pointer; transition: all 0.13s; align-items: flex-start; }
+.vault-item:hover { background: var(--surface-2); border-color: var(--border); }
+.vault-relevance { font-size: 11px; font-family: ui-monospace,'SF Mono',monospace; color: var(--accent); flex-shrink: 0; margin-top: 1px; min-width: 34px; }
+.vault-item-body { flex: 1; min-width: 0; }
+.vault-item-type { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
+.vault-item-text { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+.vault-item-time { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+#memory-sidebar { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.vault-ops-section { padding: 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+.vault-op-btn { display: flex; align-items: center; gap: 7px; width: 100%; padding: 7px 10px; border-radius: var(--radius-sm); background: none; border: 1px solid var(--border); color: var(--text-dim); font-size: 12px; font-family: inherit; cursor: pointer; margin-bottom: 5px; transition: all 0.13s; text-align: left; }
+.vault-op-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent-border); }
+.vault-op-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.retention-section { padding: 12px; flex-shrink: 0; }
+.retention-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.retention-label { font-size: 12px; color: var(--text-dim); }
+.retention-val { font-size: 12px; color: var(--text-muted); font-family: ui-monospace,'SF Mono',monospace; }
+
+/* ── View: Settings ──────────────────────────────────────────────────────── */
+#view-settings { flex-direction: column; overflow-y: auto; }
+.settings-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1100px; }
+.settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.settings-section.full-width { grid-column: 1 / -1; }
+.settings-section-header { padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
+.settings-section-title { font-size: 12px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.07em; }
+.settings-section-body { padding: 14px 16px; }
+
+.provider-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; }
+.provider-card:last-child { margin-bottom: 0; }
+.provider-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; margin-top: 4px; transition: background 0.3s; }
+.provider-status-dot.ok { background: var(--green); }
+.provider-status-dot.err { background: var(--red); }
+.provider-card-body { flex: 1; min-width: 0; }
+.provider-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.provider-card-model { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; font-family: ui-monospace,'SF Mono',monospace; }
+.provider-card-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.provider-card-badge { display: inline-flex; font-size: 9.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-top: 5px; }
+.provider-card-badge.active { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,.22); }
+.provider-card-badge.inactive { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+
+.hw-panel { background: #0c0c0c; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-family: ui-monospace,'SF Mono',monospace; }
+.hw-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-subtle); }
+.hw-row:last-child { border-bottom: none; }
+.hw-key { font-size: 11.5px; color: var(--text-muted); }
+.hw-val { font-size: 11.5px; color: var(--green); }
+
+.routing-table { width: 100%; border-collapse: collapse; }
+.routing-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.routing-table td { font-size: 12px; padding: 7px 10px; border-bottom: 1px solid var(--border-subtle); }
+.routing-table tr:last-child td { border-bottom: none; }
+.route-task { color: var(--text-dim); }
+.route-model { color: #c4b5fd; font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; }
+.route-reason { color: var(--text-muted); font-size: 11px; }
+.add-rule-btn { margin-top: 10px; padding: 6px 12px; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 12px; font-family: inherit; cursor: pointer; transition: all 0.13s; }
+.add-rule-btn:hover { border-color: var(--accent-border); color: var(--text); background: var(--accent-dim); }
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-4); }
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  #hamburger { display: flex; }
+  #nav { position: fixed; left: 0; top: 0; height: 100%; z-index: 10; transform: translateX(-100%); }
+  #nav.open { transform: translateX(0); }
+  #nav-overlay.open { display: block; }
+  .bubble { max-width: 94%; }
+  #live-panel { display: none; }
+  .settings-body { grid-template-columns: 1fr; }
+  .settings-section.full-width { grid-column: 1; }
+  #memory-sidebar { display: none; }
+  #research-memories { display: none; }
+  #code-tree { display: none; }
+  #code-assistant { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Left nav sidebar ──────────────────────────────────────────────── -->
+  <nav id="nav">
+    <div id="nav-logo">
+      <div class="logo-name">Personal<span>AI</span></div>
+      <div class="logo-tag">Local-First Engine</div>
+    </div>
+
+    <div id="nav-items">
+      <button class="nav-item active" data-view="chat">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6l-4 3V4z"/>
+        </svg>
+        Chat
+      </button>
+      <button class="nav-item" data-view="code">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 7l-4 3 4 3M13 7l4 3-4 3M11 4l-2 12"/>
+        </svg>
+        Code Workspace
+      </button>
+      <button class="nav-item" data-view="research">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="5"/><path d="M18 18l-4-4"/>
+        </svg>
+        Research
+      </button>
+      <button class="nav-item" data-view="memory">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="10" cy="7" rx="8" ry="3"/><path d="M2 7v6c0 1.66 3.58 3 8 3s8-1.34 8-3V7"/>
+          <path d="M2 10c0 1.66 3.58 3 8 3s8-1.34 8-3"/>
+        </svg>
+        Memory
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="10" cy="10" r="2.5"/>
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
+        </svg>
+        Settings
+      </button>
+    </div>
+
+    <div id="nav-bottom">
+      <button id="new-session-btn">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 2H2a1 1 0 0 0-1 1v8l2.5-2H12a1 1 0 0 0 1-1V7"/><path d="M11 0v4M9 2h4"/>
+        </svg>
+        New Session
+      </button>
+      <div class="status-row">
+        <span class="status-dot loading" id="ollama-dot"></span>
+        <span class="status-label">Ollama</span>
+        <span class="status-value" id="ollama-status">—</span>
+      </div>
+      <div class="status-row">
+        <span class="status-dot" id="provider-dot"></span>
+        <span class="status-label" id="provider-label">Provider</span>
+        <span class="status-value" id="provider-status-val">—</span>
+      </div>
+    </div>
+  </nav>
+
+  <div id="nav-overlay"></div>
+
+  <!-- ── Views ─────────────────────────────────────────────────────────── -->
+  <div id="views">
+
+    <!-- ── Chat view ───────────────────────────────────────────────────── -->
+    <div id="view-chat" class="view active">
+      <div class="topbar">
+        <button id="hamburger" aria-label="Menu">
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2 5h14M2 9h14M2 13h14"/>
+          </svg>
+        </button>
+        <div id="profile-tabs"></div>
+        <div style="flex:1"></div>
+        <div id="ws-indicator">
+          <div id="ws-dot" title="Connecting…"></div>
+          <span id="ws-model-label"></span>
+        </div>
+      </div>
+
+      <div id="chat-layout">
+        <div id="chat-main">
+          <div id="messages">
+            <div id="empty-state">
+              <div class="empty-logo">Personal<span>AI</span></div>
+              <div class="empty-tagline" id="empty-provider-line">What can I help you with?</div>
+              <div class="empty-suggestions">
+                <button class="suggestion-chip">Write a Python function</button>
+                <button class="suggestion-chip">Explain a concept</button>
+                <button class="suggestion-chip">Debug my code</button>
+                <button class="suggestion-chip">Research a topic</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="toast-container"></div>
+
+          <div id="input-area">
+            <div id="input-row">
+              <textarea id="msg-input" rows="1" placeholder="Message PersonalAI… (Enter ↵ send, Shift+Enter newline)"></textarea>
+              <button id="send-btn">
+                <svg viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.5 1.5a.5.5 0 0 1 .65-.065l13 7a.5.5 0 0 1 0 .13l-13 7a.5.5 0 0 1-.71-.64L3.46 9H10.5a.5.5 0 0 0 0-1H3.46L1.44 2.2a.5.5 0 0 1 .06-.7z"/>
+                </svg>
+                Send
+              </button>
+            </div>
+            <div id="status-bar"></div>
+          </div>
+        </div>
+
+        <!-- Live events panel -->
+        <div id="live-panel">
+          <div id="live-panel-header">
+            <button id="live-panel-toggle" title="Collapse events panel">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 4l-4 4 4 4"/>
+              </svg>
+            </button>
+            <span class="live-panel-title">Live Events</span>
+          </div>
+          <div id="live-events-list"></div>
+          <div class="live-perf-section">
+            <div class="perf-title">System Performance</div>
+            <div class="perf-row">
+              <span class="perf-label">Tokens/sec</span>
+              <div class="perf-bar-wrap"><div class="perf-bar green" id="perf-tps-bar" style="width:0%"></div></div>
+              <span class="perf-val" id="perf-tps">—</span>
+            </div>
+            <div class="perf-row">
+              <span class="perf-label">Context</span>
+              <div class="perf-bar-wrap"><div class="perf-bar" id="perf-ctx-bar" style="width:0%"></div></div>
+              <span class="perf-val" id="perf-ctx">—</span>
+            </div>
+            <div class="perf-stat-row">
+              <span class="perf-stat-label">Latency</span>
+              <span class="perf-stat-val" id="perf-latency">—</span>
+            </div>
+            <div class="perf-stat-row">
+              <span class="perf-stat-label">Total tokens</span>
+              <span class="perf-stat-val" id="perf-tokens">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Code view ───────────────────────────────────────────────────── -->
+    <div id="view-code" class="view">
+      <div class="topbar">
+        <span class="topbar-title">Code Workspace</span>
+        <span class="topbar-sub" id="code-active-file">No file open</span>
+      </div>
+      <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+        <div id="code-tree">
+          <div id="code-tree-header">Explorer</div>
+          <div id="code-tree-list">
+            <div class="tree-folder">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 4h12v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4zm0 0V3a1 1 0 0 1 1-1h4l1 2"/></svg>
+              src/core
+            </div>
+            <div class="tree-file">assistant.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-file">context.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-file">logger.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-folder" style="margin-top:4px">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 4h12v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4zm0 0V3a1 1 0 0 1 1-1h4l1 2"/></svg>
+              src/providers
+            </div>
+            <div class="tree-file">ollama.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-file">anthropic.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-file">openai.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-folder" style="margin-top:4px">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 4h12v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4zm0 0V3a1 1 0 0 1 1-1h4l1 2"/></svg>
+              src/tools
+            </div>
+            <div class="tree-file">registry.ts <span class="tree-ext">.ts</span></div>
+            <div class="tree-file">calculator.ts <span class="tree-ext">.ts</span></div>
+          </div>
+        </div>
+        <div id="code-editor">
+          <textarea id="code-editor-area" spellcheck="false" placeholder="// Select a file from the explorer, or paste code here&#10;// Use the AI assistant panel to get help with your code"></textarea>
+        </div>
+        <div id="code-assistant">
+          <div class="panel-section">
+            <div class="panel-section-title">Coding Assistant</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.6">Switch to Coder profile for optimized code assistance using qwen2.5-coder.</div>
+            <button style="margin-top:10px;padding:6px 12px;background:var(--accent-dim);border:1px solid var(--accent-border);color:#c4b5fd;border-radius:var(--radius-sm);font-size:12px;font-family:inherit;cursor:pointer;" onclick="document.querySelector('[data-view=chat]').click();switchProfile('coder')">
+              Open Chat / Coder Mode
+            </button>
+          </div>
+          <div class="panel-section">
+            <div class="panel-section-title">Quick Actions</div>
+            <div id="code-quick-actions" style="display:flex;flex-direction:column;gap:4px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Research view ──────────────────────────────────────────────── -->
+    <div id="view-research" class="view">
+      <div id="research-topbar">
+        <input id="research-search-input" type="search" placeholder="Search with Brave — enter a query…" autocomplete="off">
+        <button id="research-search-btn">Search</button>
+        <span class="brave-badge">Brave Search</span>
+      </div>
+      <div id="research-body">
+        <div id="research-memories">
+          <div id="research-memories-header">
+            <div class="r-section-title">Recent Memories</div>
+          </div>
+          <div id="research-mem-list"></div>
+        </div>
+        <div id="research-main">
+          <div id="research-summary">
+            <div class="research-empty" id="research-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+              <div style="font-size:13px;color:var(--text-muted)">Enter a query above to search with Brave</div>
+              <div style="font-size:11.5px;color:var(--text-muted)">Results appear here. Memories shown on the left.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Memory / Vault view ────────────────────────────────────────── -->
+    <div id="view-memory" class="view">
+      <div id="memory-stats-bar">
+        <div class="mem-stat-card">
+          <div class="mem-stat-label">Total Memories</div>
+          <div class="mem-stat-val" id="vault-total">—</div>
+          <div class="mem-stat-sub">stored entries</div>
+        </div>
+        <div class="mem-stat-card">
+          <div class="mem-stat-label">Search Engine</div>
+          <div class="mem-stat-val" style="font-size:14px;padding-top:3px" id="vault-engine">M2</div>
+          <div class="mem-stat-sub">LIKE search</div>
+        </div>
+        <div class="mem-stat-card">
+          <div class="mem-stat-label">Avg / Entry</div>
+          <div class="mem-stat-val" id="vault-avg-len">—</div>
+          <div class="mem-stat-sub">characters</div>
+        </div>
+        <div class="mem-stat-card">
+          <div class="mem-stat-label">Architecture</div>
+          <div class="mem-stat-val" style="font-size:14px;padding-top:3px">SQLite</div>
+          <div class="mem-stat-sub">WAL mode</div>
+        </div>
+      </div>
+      <div id="memory-body">
+        <div id="memory-list-panel">
+          <div id="memory-search-bar">
+            <input id="vault-search" type="search" placeholder="Search memories…" autocomplete="off">
+            <div class="engine-toggle">
+              <button class="engine-btn active" data-engine="M2">M2</button>
+              <button class="engine-btn" data-engine="M10">M10</button>
+            </div>
+          </div>
+          <div id="vault-list"></div>
+        </div>
+        <div id="memory-sidebar">
+          <div class="vault-ops-section">
+            <div class="panel-section-title" style="padding:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);font-weight:600">Vault Operations</div>
+            <button class="vault-op-btn" onclick="loadVaultMemories()">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 1v12M1 7l6-6 6 6"/></svg>
+              Refresh memories
+            </button>
+            <button class="vault-op-btn" onclick="exportMemories()">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 9V1M1 9l6 4 6-4"/><rect x="1" y="11" width="12" height="2" rx="1"/></svg>
+              Export to JSON
+            </button>
+          </div>
+          <div class="retention-section">
+            <div class="panel-section-title" style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);font-weight:600;margin-bottom:10px">Retention Policies</div>
+            <div class="retention-row">
+              <span class="retention-label">Delete policy</span>
+              <span class="retention-val">Archive only</span>
+            </div>
+            <div class="retention-row">
+              <span class="retention-label">Max entries</span>
+              <span class="retention-val" id="vault-max">—</span>
+            </div>
+            <div class="retention-row">
+              <span class="retention-label">Auto-save</span>
+              <span class="retention-val">On response</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Settings view ─────────────────────────────────────────────── -->
+    <div id="view-settings" class="view">
+      <div class="topbar">
+        <span class="topbar-title">Settings</span>
+      </div>
+      <div class="settings-body">
+        <!-- Provider cards -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">Model Providers</span>
+          </div>
+          <div class="settings-section-body" id="provider-cards"></div>
+        </div>
+
+        <!-- Hardware context -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-section-title">Hardware Context</span>
+          </div>
+          <div class="settings-section-body">
+            <div class="hw-panel" id="hw-panel">
+              <div class="hw-row"><span class="hw-key">RAM</span><span class="hw-val" id="hw-ram">16 GB</span></div>
+              <div class="hw-row"><span class="hw-key">Primary model</span><span class="hw-val" id="hw-primary">qwen2.5:14b</span></div>
+              <div class="hw-row"><span class="hw-key">Secondary model</span><span class="hw-val" id="hw-secondary">gemma3:12b</span></div>
+              <div class="hw-row"><span class="hw-key">Tool support</span><span class="hw-val" id="hw-tools">—</span></div>
+              <div class="hw-row"><span class="hw-key">Streaming</span><span class="hw-val" id="hw-streaming">—</span></div>
+              <div class="hw-row"><span class="hw-key">Provider name</span><span class="hw-val" id="hw-provider-name">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task routing table -->
+        <div class="settings-section full-width">
+          <div class="settings-section-header">
+            <span class="settings-section-title">Task Routing Table</span>
+            <button class="add-rule-btn">+ New Rule</button>
+          </div>
+          <div class="settings-section-body">
+            <table class="routing-table">
+              <thead>
+                <tr><th>Task Type</th><th>Model</th><th>Reason</th></tr>
+              </thead>
+              <tbody id="routing-tbody">
+                <tr><td class="route-task">tools</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">Native tool-use support</td></tr>
+                <tr><td class="route-task">coding</td><td class="route-model">qwen2.5-coder:7b</td><td class="route-reason">Optimized for code generation</td></tr>
+                <tr><td class="route-task">reasoning</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">Strong logical reasoning</td></tr>
+                <tr><td class="route-task">chat</td><td class="route-model">gemma3:12b</td><td class="route-reason">Conversational, low latency</td></tr>
+                <tr><td class="route-task">longcontext</td><td class="route-model">gemma3:12b</td><td class="route-reason">128k context window</td></tr>
+                <tr><td class="route-task">quick</td><td class="route-model">gemma3:12b</td><td class="route-reason">Fast responses</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tools registered -->
+        <div class="settings-section full-width">
+          <div class="settings-section-header">
+            <span class="settings-section-title">Registered Tools</span>
+          </div>
+          <div class="settings-section-body" id="tools-registry-body">
+            <div style="font-size:12px;color:var(--text-muted)">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /views -->
+</div><!-- /app -->
+
+<script>
+(function() {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const state = {
+    ws:                   null,
+    wsReady:              false,
+    reconnectDelay:       1000,
+    streaming:            false,
+    streamingBubble:      null,
+    streamingToolPills:   {},
+    scrollLocked:         false,
+    activeProfile:        'assistant',
+    currentModel:         '',
+    hasMessages:          false,
+    activeView:           'chat',
+    liveEventCount:       0,
+    perfTokenCount:       0,
+    perfStreamStart:      0,
+    perfTotalTokens:      0,
+    perfLastLatency:      0,
+    vaultEngine:          'M2',
+  };
+  let accText = '';
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const $messages    = $('messages');
+  const $input       = $('msg-input');
+  const $sendBtn     = $('send-btn');
+  const $status      = $('status-bar');
+  const $profileTabs = $('profile-tabs');
+  const $hamburger   = $('hamburger');
+  const $nav         = $('nav');
+  const $overlay     = $('nav-overlay');
+  const $emptyState  = $('empty-state');
+  const $emptyProv   = $('empty-provider-line');
+  const $wsDot       = $('ws-dot');
+  const $wsModelLbl  = $('ws-model-label');
+  const $liveList    = $('live-events-list');
+  const $livePanel   = $('live-panel');
+
+  // ── Utilities ──────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function fmtTime() {
+    const d = new Date();
+    return d.getHours().toString().padStart(2,'0') + ':' +
+           d.getMinutes().toString().padStart(2,'0') + ':' +
+           d.getSeconds().toString().padStart(2,'0');
+  }
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    $('toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 2800);
+  }
+
+  // ── Markdown renderer ──────────────────────────────────────────────────────
+  function renderMarkdown(text) {
+    if (!text) return '';
+    let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, _lang, code) =>
+      `<div class="code-wrap"><button class="copy-btn">Copy</button><pre><code>${code.trimEnd()}</code></pre></div>`);
+    s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    s = s.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+    s = s.replace(/(<li>.*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+    s = s.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    s = s.replace(/(<li>.*?<\/li>\n?)+/g, m => {
+      if (m.includes('<ul>')) return m;
+      return `<ol>${m}</ol>`;
+    });
+    s = s.split(/\n{2,}/).map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (/^<(h[123]|ul|ol|pre|div)/.test(p)) return p;
+      return `<p>${p.replace(/\n/g,'<br>')}</p>`;
+    }).join('');
+    return s;
+  }
+
+  // ── Scroll ─────────────────────────────────────────────────────────────────
+  $messages.addEventListener('scroll', () => {
+    const near = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < 80;
+    state.scrollLocked = !near;
+  });
+  function scrollBottom() {
+    if (!state.scrollLocked) $messages.scrollTop = $messages.scrollHeight;
+  }
+
+  // ── Copy code blocks ───────────────────────────────────────────────────────
+  $messages.addEventListener('click', e => {
+    if (!e.target.classList.contains('copy-btn')) return;
+    const code = e.target.nextElementSibling?.querySelector('code')?.textContent ?? '';
+    navigator.clipboard.writeText(code).then(() => {
+      e.target.textContent = 'Copied!';
+      e.target.classList.add('copied');
+      setTimeout(() => { e.target.textContent = 'Copy'; e.target.classList.remove('copied'); }, 2000);
+    }).catch(() => {});
+  });
+
+  $emptyState.addEventListener('click', e => {
+    if (!e.target.classList.contains('suggestion-chip')) return;
+    $input.value = e.target.textContent + ' ';
+    $input.focus();
+    autoResize();
+  });
+
+  // ── Empty state ────────────────────────────────────────────────────────────
+  function hideEmptyState() {
+    if (!state.hasMessages) {
+      state.hasMessages = true;
+      $emptyState.classList.add('hidden');
+    }
+  }
+
+  // ── Message building ───────────────────────────────────────────────────────
+  function addMessage(role, html) {
+    hideEmptyState();
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = html;
+    row.appendChild(bubble);
+    $messages.appendChild(row);
+    scrollBottom();
+    return bubble;
+  }
+  function addUserMessage(text) {
+    addMessage('user', `<p>${esc(text).replace(/\n/g,'<br>')}</p>`);
+  }
+  function startAssistantBubble() {
+    hideEmptyState();
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    row.appendChild(bubble);
+    $messages.appendChild(row);
+    scrollBottom();
+    return bubble;
+  }
+  function showSkeleton() {
+    removeSkeleton();
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.id = 'skeleton-row';
+    row.innerHTML = '<div class="thinking-bubble"><span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span></div>';
+    $messages.appendChild(row);
+    scrollBottom();
+  }
+  function removeSkeleton() {
+    const s = $('skeleton-row');
+    if (s) s.remove();
+  }
+  function addModelSwitchPill(from, to) {
+    const pill = document.createElement('div');
+    pill.className = 'model-switch-pill';
+    pill.innerHTML = `<svg viewBox="0 0 10 10" fill="currentColor" width="10" height="10"><path d="M5 0l1.5 3h-3L5 0zm0 10L3.5 7h3L5 10zM0 5l3-1.5v3L0 5zm10 0L7 6.5v-3L10 5z"/></svg>${esc(from)} &rarr; ${esc(to)}`;
+    $messages.appendChild(pill);
+    scrollBottom();
+  }
+
+  // ── Live events panel ──────────────────────────────────────────────────────
+  function addLiveEvent(cssClass, typeLabel, detail) {
+    state.liveEventCount++;
+    const el = document.createElement('div');
+    el.className = 'live-event';
+    el.innerHTML = `<span class="live-event-time">${fmtTime()}</span><div class="live-event-body"><div class="live-event-type ${cssClass}">${esc(typeLabel)}</div><div class="live-event-detail">${esc(detail)}</div></div>`;
+    $liveList.appendChild(el);
+    // Keep max 80 events
+    while ($liveList.children.length > 80) $liveList.removeChild($liveList.firstChild);
+    $liveList.scrollTop = $liveList.scrollHeight;
+  }
+
+  $('live-panel-toggle').addEventListener('click', () => {
+    $livePanel.classList.toggle('collapsed');
+  });
+
+  // ── Perf tracking ──────────────────────────────────────────────────────────
+  function updatePerf() {
+    const now = Date.now();
+    if (state.perfStreamStart && state.perfTokenCount > 0) {
+      const elapsed = (now - state.perfStreamStart) / 1000;
+      const tps = elapsed > 0 ? Math.round(state.perfTokenCount / elapsed) : 0;
+      const tpsMax = 80;
+      $('perf-tps').textContent = tps + '/s';
+      $('perf-tps-bar').style.width = Math.min(100, (tps / tpsMax) * 100) + '%';
+    }
+    if (state.perfTotalTokens) {
+      const ctx = state.perfTotalTokens;
+      const ctxMax = 8192;
+      $('perf-ctx').textContent = ctx > 999 ? (ctx/1000).toFixed(1)+'k' : String(ctx);
+      $('perf-ctx-bar').style.width = Math.min(100, (ctx / ctxMax) * 100) + '%';
+      $('perf-tokens').textContent = ctx > 999 ? (ctx/1000).toFixed(1)+'k' : String(ctx);
+    }
+    if (state.perfLastLatency) {
+      $('perf-latency').textContent = state.perfLastLatency + 'ms';
+    }
+  }
+
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    try { state.ws = new WebSocket(`${proto}//${location.host}/api/chat`); }
+    catch { scheduleReconnect(); return; }
+    setWsDot('');
+
+    state.ws.onopen = () => {
+      state.wsReady = true;
+      state.reconnectDelay = 1000;
+      setWsDot('connected');
+      setStatus('', '');
+      addLiveEvent('evt-conn', 'ws_connected', location.host);
+    };
+    state.ws.onclose = () => {
+      state.wsReady = false;
+      setWsDot('error');
+      if (state.streaming) {
+        state.streaming = false;
+        if (state.streamingBubble) state.streamingBubble.classList.remove('streaming');
+        state.streamingBubble = null;
+        state.streamingToolPills = {};
+        accText = '';
+        setSendEnabled(true);
+      }
+      scheduleReconnect();
+    };
+    state.ws.onerror = () => { state.wsReady = false; setWsDot('error'); };
+    state.ws.onmessage = evt => {
+      let chunk;
+      try { chunk = JSON.parse(evt.data); } catch { return; }
+      handleChunk(chunk);
+    };
+  }
+
+  function scheduleReconnect() {
+    setStatus(`Reconnecting in ${state.reconnectDelay / 1000}s…`, 'muted');
+    setTimeout(connect, state.reconnectDelay);
+    state.reconnectDelay = Math.min(state.reconnectDelay * 2, 16000);
+  }
+  function setWsDot(cls) {
+    $wsDot.className = cls;
+    $wsDot.title = cls === 'connected' ? 'Connected' : cls === 'error' ? 'Disconnected' : 'Connecting…';
+  }
+
+  // ── Chunk handler ──────────────────────────────────────────────────────────
+  function handleChunk(chunk) {
+    if (chunk.type === 'text') {
+      removeSkeleton();
+      if (!state.streamingBubble) {
+        state.streamingBubble = startAssistantBubble();
+        accText = '';
+        state.perfStreamStart = Date.now();
+        state.perfTokenCount = 0;
+      }
+      accText += chunk.delta;
+      state.perfTokenCount += chunk.delta.length / 4; // approx tokens
+      state.streamingBubble.innerHTML = renderMarkdown(accText);
+      state.streamingBubble.classList.add('streaming');
+      scrollBottom();
+      updatePerf();
+      return;
+    }
+    if (chunk.type === 'tool_call') {
+      removeSkeleton();
+      if (!state.streamingBubble) {
+        state.streamingBubble = startAssistantBubble();
+        accText = '';
+      }
+      const pill = document.createElement('div');
+      pill.className = 'tool-call-pill';
+      pill.id = `tc-${chunk.id}`;
+      pill.innerHTML = `<span class="tool-spinner"></span><span>${esc(chunk.name)}</span>`;
+      state.streamingBubble.appendChild(document.createElement('br'));
+      state.streamingBubble.appendChild(pill);
+      state.streamingToolPills[chunk.id] = pill;
+      addLiveEvent('evt-tool', 'tool_called', chunk.name + (chunk.arguments ? ' ' + JSON.stringify(chunk.arguments).slice(0,60) : ''));
+      scrollBottom();
+      return;
+    }
+    if (chunk.type === 'tool_result') {
+      const pill = state.streamingToolPills[chunk.id];
+      if (pill) {
+        pill.className = 'tool-call-pill done';
+        pill.innerHTML = `<svg class="done-check" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1.5 5l2.5 2.5 4.5-4.5"/></svg><span>${esc(chunk.name)}</span>`;
+        const wrap = document.createElement('div');
+        wrap.className = 'tool-result-wrap';
+        const toggle = document.createElement('div');
+        toggle.className = 'tool-result-toggle';
+        toggle.innerHTML = `<svg class="toggle-chevron" viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 2l4 3-4 3"/></svg> result`;
+        const body = document.createElement('div');
+        body.className = 'tool-result-body';
+        body.textContent = typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result, null, 2);
+        toggle.addEventListener('click', () => { body.classList.toggle('open'); toggle.classList.toggle('open'); });
+        wrap.appendChild(toggle);
+        wrap.appendChild(body);
+        pill.after(wrap);
+      }
+      delete state.streamingToolPills[chunk.id];
+      addLiveEvent('evt-result', 'tool_result', chunk.name);
+      if (state.streaming) showSkeleton();
+      return;
+    }
+    if (chunk.type === 'model_switch') {
+      updateModelDisplay(chunk.to);
+      addModelSwitchPill(chunk.from, chunk.to);
+      addLiveEvent('evt-switch', 'model_selected', chunk.from + ' → ' + chunk.to);
+      return;
+    }
+    if (chunk.type === 'done') {
+      state.streaming = false;
+      if (state.streamingBubble) state.streamingBubble.classList.remove('streaming');
+      state.streamingBubble = null;
+      state.streamingToolPills = {};
+      accText = '';
+      setSendEnabled(true);
+      if (chunk.usage) {
+        state.perfTotalTokens = (chunk.usage.input || 0) + (chunk.usage.output || 0);
+        const row = $messages.lastElementChild;
+        if (row?.classList.contains('msg-row')) {
+          const u = document.createElement('div');
+          u.className = 'usage-line';
+          u.textContent = `${chunk.usage.input} in / ${chunk.usage.output} out`;
+          row.appendChild(u);
+        }
+        addLiveEvent('evt-done', 'done', `in:${chunk.usage.input} out:${chunk.usage.output}`);
+      }
+      updatePerf();
+      setStatus('', '');
+      scrollBottom();
+      return;
+    }
+    if (chunk.type === 'error') {
+      removeSkeleton();
+      state.streaming = false;
+      if (state.streamingBubble) state.streamingBubble.classList.remove('streaming');
+      state.streamingBubble = null;
+      setSendEnabled(true);
+      accText = '';
+      addMessage('assistant', `<p style="color:var(--red)">${esc(chunk.message)}</p>`);
+      addLiveEvent('evt-error', 'error', chunk.message.slice(0,80));
+      setStatus('', '');
+      return;
+    }
+    if (chunk.type === 'profile_changed') {
+      state.activeProfile = chunk.name;
+      updateProfileUI();
+      toast(`Profile: ${chunk.name}`);
+      return;
+    }
+  }
+
+  // ── Send ───────────────────────────────────────────────────────────────────
+  function send() {
+    const text = $input.value.trim();
+    if (!text || state.streaming || !state.wsReady) return;
+    addUserMessage(text);
+    $input.value = '';
+    $input.style.height = 'auto';
+    state.streaming = true;
+    state.streamingBubble = null;
+    state.streamingToolPills = {};
+    state.perfTokenCount = 0;
+    state.perfStreamStart = 0;
+    accText = '';
+    setSendEnabled(false);
+    showSkeleton();
+    setStatus('Thinking…', 'muted');
+    state.scrollLocked = false;
+    state.ws.send(JSON.stringify({ type: 'chat', content: text }));
+    addLiveEvent('evt-model', 'user_message', text.slice(0,60) + (text.length > 60 ? '…' : ''));
+    // Estimate latency on first token
+    const sendAt = Date.now();
+    const origHandler = state.ws.onmessage;
+    const latchLatency = evt => {
+      try {
+        const c = JSON.parse(evt.data);
+        if (c.type === 'text' && !state.perfLastLatency) {
+          state.perfLastLatency = Date.now() - sendAt;
+          addLiveEvent('evt-result', 'provider_latency', state.perfLastLatency + 'ms');
+          updatePerf();
+        }
+      } catch {}
+      origHandler(evt);
+      state.ws.onmessage = origHandler; // restore after first text chunk
+    };
+    state.ws.onmessage = latchLatency;
+  }
+
+  function setSendEnabled(v) { $sendBtn.disabled = !v; }
+  function setStatus(msg, _tone) { $status.textContent = msg; }
+
+  // ── Auto-resize textarea ───────────────────────────────────────────────────
+  function autoResize() {
+    $input.style.height = 'auto';
+    $input.style.height = Math.min($input.scrollHeight, 150) + 'px';
+  }
+  $input.addEventListener('input', autoResize);
+  $input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  $sendBtn.addEventListener('click', send);
+
+  // ── New session ────────────────────────────────────────────────────────────
+  function newChat() {
+    if (state.ws) { state.ws.close(); state.ws = null; }
+    state.wsReady = false;
+    state.streaming = false;
+    state.streamingBubble = null;
+    state.streamingToolPills = {};
+    state.hasMessages = false;
+    state.perfTokenCount = 0;
+    state.perfStreamStart = 0;
+    state.perfLastLatency = 0;
+    accText = '';
+    setSendEnabled(true);
+    $messages.innerHTML = '';
+    $messages.appendChild($emptyState);
+    $emptyState.classList.remove('hidden');
+    $liveList.innerHTML = '';
+    connect();
+    switchView('chat');
+  }
+  $('new-session-btn').addEventListener('click', newChat);
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+  function switchView(name) {
+    state.activeView = name;
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
+    // Close mobile nav
+    $nav.classList.remove('open');
+    $overlay.classList.remove('open');
+    // Lazy-load data for each view
+    if (name === 'memory') loadVaultMemories();
+    if (name === 'research') loadResearchMemories();
+    if (name === 'settings') loadSettingsData();
+  }
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => switchView(item.dataset.view));
+  });
+
+  // ── Profile ────────────────────────────────────────────────────────────────
+  function switchProfile(name) {
+    if (!state.wsReady) { toast('Not connected'); return; }
+    state.ws.send(JSON.stringify({ type: 'profile', name }));
+    fetch('/api/profile', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name}) })
+      .then(() => { state.activeProfile = name; updateProfileUI(); })
+      .catch(() => {});
+  }
+  function updateProfileUI() {
+    $profileTabs.querySelectorAll('.profile-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.profile === state.activeProfile);
+    });
+  }
+
+  // ── Model display ───────────────────────────────────────────────────────────
+  function updateModelDisplay(model) {
+    state.currentModel = model;
+    $wsModelLbl.textContent = model ? model : '';
+    addLiveEvent('evt-model', 'model_selected', model);
+  }
+
+  // ── Provider info ────────────────────────────────────────────────────────────
+  function loadProvider() {
+    fetch('/api/provider').then(r => r.json()).then(data => {
+      updateModelDisplay(data.model);
+      $emptyProv.textContent = `Powered by ${data.name} / ${data.model}`;
+      // Nav status
+      const provName = data.name || 'Provider';
+      $('provider-label').textContent = provName;
+      $('provider-status-val').textContent = data.model ? data.model.slice(0,12) : '—';
+      $('provider-dot').className = 'status-dot ok';
+      // Settings hw
+      $('hw-provider-name').textContent = data.name;
+      $('hw-tools').textContent = data.supportsToolUse ? 'Yes' : 'No';
+      $('hw-streaming').textContent = 'Yes';
+    }).catch(() => { $('provider-dot').className = 'status-dot err'; });
+  }
+
+  function loadHealth() {
+    fetch('/api/health').then(r => r.json()).then(data => {
+      const dot = $('ollama-dot');
+      dot.className = 'status-dot ' + (data.ok ? 'ok' : 'err');
+      $('ollama-status').textContent = data.latencyMs ? data.latencyMs + 'ms' : (data.ok ? 'ok' : 'err');
+    }).catch(() => {
+      $('ollama-dot').className = 'status-dot err';
+      $('ollama-status').textContent = 'offline';
+    });
+  }
+
+  // ── Profiles ───────────────────────────────────────────────────────────────
+  function loadProfiles() {
+    fetch('/api/profile').then(r => r.json()).then(data => {
+      state.activeProfile = data.name;
+      $profileTabs.innerHTML = '';
+      Object.entries(data.all).forEach(([key, cfg]) => {
+        const btn = document.createElement('button');
+        btn.className = 'profile-tab' + (key === data.name ? ' active' : '');
+        btn.dataset.profile = key;
+        btn.textContent = cfg.name;
+        btn.title = cfg.description || '';
+        btn.addEventListener('click', () => switchProfile(key));
+        $profileTabs.appendChild(btn);
+      });
+    }).catch(() => {});
+  }
+
+  // ── Vault / Memory view ────────────────────────────────────────────────────
+  function loadVaultMemories(q) {
+    const url = q ? `/api/memories?q=${encodeURIComponent(q)}` : '/api/memories';
+    fetch(url).then(r => r.json()).then(mems => {
+      const list = $('vault-list');
+      list.innerHTML = '';
+      $('vault-total').textContent = mems.length;
+      if (!mems.length) {
+        list.innerHTML = '<div style="padding:24px;text-align:center;font-size:12px;color:var(--text-muted)">No memories yet.</div>';
+        return;
+      }
+      const totalLen = mems.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+      $('vault-avg-len').textContent = mems.length ? Math.round(totalLen / mems.length) : '—';
+      $('vault-max').textContent = '∞';
+      mems.forEach((m, i) => {
+        const el = document.createElement('div');
+        el.className = 'vault-item';
+        const relevance = q ? ((1 - i * 0.05).toFixed(2)) : '1.00';
+        const time = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—';
+        el.innerHTML = `<span class="vault-relevance">${relevance}</span><div class="vault-item-body"><div class="vault-item-type">${esc(m.type)}</div><div class="vault-item-text">${esc((m.content||'').slice(0,80))}${(m.content||'').length>80?'…':''}</div><div class="vault-item-time">${time}</div></div>`;
+        el.addEventListener('click', () => {
+          if (state.activeView !== 'chat') switchView('chat');
+          $input.value += (($input.value && !$input.value.endsWith(' ')) ? ' ' : '') + (m.content||'');
+          $input.focus(); autoResize();
+        });
+        list.appendChild(el);
+      });
+    }).catch(() => {});
+  }
+
+  let vaultSearchTimer;
+  $('vault-search').addEventListener('input', e => {
+    clearTimeout(vaultSearchTimer);
+    vaultSearchTimer = setTimeout(() => loadVaultMemories(e.target.value.trim() || null), 280);
+  });
+
+  document.querySelectorAll('.engine-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.vaultEngine = btn.dataset.engine;
+      $('vault-engine').textContent = btn.dataset.engine;
+    });
+  });
+
+  window.exportMemories = function() {
+    fetch('/api/memories').then(r => r.json()).then(mems => {
+      const blob = new Blob([JSON.stringify(mems, null, 2)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'memories.json';
+      a.click();
+      toast('Exported memories.json');
+    }).catch(() => toast('Export failed'));
+  };
+
+  // ── Research view ──────────────────────────────────────────────────────────
+  function loadResearchMemories() {
+    fetch('/api/memories').then(r => r.json()).then(mems => {
+      const list = $('research-mem-list');
+      list.innerHTML = '';
+      if (!mems.length) {
+        list.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text-muted)">No memories yet.</div>';
+        return;
+      }
+      mems.slice(0, 20).forEach(m => {
+        const el = document.createElement('div');
+        el.className = 'research-mem-item';
+        const time = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '';
+        const engineBadge = state.vaultEngine === 'M10'
+          ? '<span class="r-badge semantic">SEMANTIC</span>'
+          : '<span class="r-badge like">LIKE SEARCH</span>';
+        el.innerHTML = `<div class="research-mem-badges">${engineBadge}<span class="r-badge type">${esc(m.type)}</span></div><div class="research-mem-text">${esc((m.content||'').slice(0,70))}${(m.content||'').length>70?'…':''}</div><div class="research-mem-time">${time}</div>`;
+        el.addEventListener('click', () => {
+          switchView('chat');
+          $input.value += (($input.value && !$input.value.endsWith(' ')) ? ' ' : '') + (m.content||'');
+          $input.focus(); autoResize();
+        });
+        list.appendChild(el);
+      });
+    }).catch(() => {});
+  }
+
+  $('research-search-btn').addEventListener('click', doResearch);
+  $('research-search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doResearch(); });
+
+  function doResearch() {
+    const q = $('research-search-input').value.trim();
+    if (!q) return;
+    const summary = $('research-summary');
+    $('research-empty') && ($('research-empty').style.display = 'none');
+    summary.innerHTML = '<div style="padding:20px;font-size:12px;color:var(--text-muted)">Searching…</div>';
+    // Route to chat for actual research
+    switchView('chat');
+    $input.value = `Research: ${q}`;
+    $input.focus();
+    autoResize();
+    toast(`Switched to chat to research: "${q}"`);
+  }
+
+  // ── Settings data ──────────────────────────────────────────────────────────
+  function loadSettingsData() {
+    // Provider cards
+    fetch('/api/provider').then(r => r.json()).then(data => {
+      const container = $('provider-cards');
+      const providers = [
+        { name: data.name, model: data.model, active: true, meta: `Tool use: ${data.supportsToolUse ? 'Yes' : 'No'}` },
+        { name: 'Anthropic', model: 'claude-sonnet-4-6', active: false, meta: 'API key required' },
+        { name: 'OpenAI', model: 'gpt-4o', active: false, meta: 'API key required' },
+      ];
+      container.innerHTML = providers.map(p => `
+        <div class="provider-card">
+          <div class="provider-status-dot ${p.active ? 'ok' : ''}"></div>
+          <div class="provider-card-body">
+            <div class="provider-card-name">${esc(p.name)}</div>
+            <div class="provider-card-model">${esc(p.model)}</div>
+            <div class="provider-card-meta">${esc(p.meta)}</div>
+            <span class="provider-card-badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'ACTIVE' : 'INACTIVE'}</span>
+          </div>
+        </div>`).join('');
+      $('hw-primary').textContent = data.model || 'qwen2.5:14b';
+    }).catch(() => {});
+
+    // Tools
+    fetch('/api/stats').then(r => r.json()).then(data => {
+      const tools = data.tools || [];
+      const body = $('tools-registry-body');
+      if (!tools.length) { body.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No tools registered.</div>'; return; }
+      body.innerHTML = tools.map(t => `
+        <div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)">
+          <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:#c4b5fd;width:130px;flex-shrink:0">${esc(t.name)}</span>
+          <span style="font-size:12px;color:var(--text-dim)">${esc(t.description)}</span>
+        </div>`).join('');
+    }).catch(() => {});
+
+    // Routing from model manager
+    fetch('/api/stats').then(r => r.json()).then(data => {
+      if (data.model?.config) {
+        const cfg = data.model.config;
+        const tbody = $('routing-tbody');
+        if (Object.keys(cfg).length > 0) {
+          tbody.innerHTML = Object.entries(cfg).map(([task, model]) =>
+            `<tr><td class="route-task">${esc(task)}</td><td class="route-model">${esc(String(model))}</td><td class="route-reason">Auto-routed</td></tr>`
+          ).join('');
+        }
+      }
+    }).catch(() => {});
+  }
+
+  // ── Mobile ─────────────────────────────────────────────────────────────────
+  $hamburger.addEventListener('click', () => { $nav.classList.toggle('open'); $overlay.classList.toggle('open'); });
+  $overlay.addEventListener('click', () => { $nav.classList.remove('open'); $overlay.classList.remove('open'); });
+
+  // Code quick actions
+  document.querySelectorAll('.tree-file, .tree-folder').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('tree-file')) {
+        $('code-active-file').textContent = el.textContent.trim();
+      }
+    });
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  connect();
+  loadProvider();
+  loadProfiles();
+  loadHealth();
+
+  setInterval(() => {
+    loadProvider();
+    loadHealth();
+  }, 30000);
+
+  // Code quick action buttons
+  const codeActions = [
+    { label: 'Explain this code', prompt: 'Explain this code: ' },
+    { label: 'Find bugs', prompt: 'Find bugs in: ' },
+    { label: 'Optimize', prompt: 'Optimize this: ' },
+    { label: 'Add types', prompt: 'Add TypeScript types: ' },
+  ];
+  const $cqa = $('code-quick-actions');
+  codeActions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'vault-op-btn';
+    btn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4l5 3-5 3V4zM9 7h4"/></svg>${esc(a.label)}`;
+    btn.addEventListener('click', () => {
+      const code = $('code-editor-area').value.trim();
+      switchView('chat');
+      $input.value = a.prompt + (code ? '\n```\n' + code.slice(0,500) + '\n```' : '');
+      $input.focus(); autoResize();
+    });
+    $cqa.appendChild(btn);
+  });
+
+})();
+</script>
+</body>
+</html>

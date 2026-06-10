@@ -324,12 +324,43 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full provider checklist.
 
 ---
 
+## Web UI
+
+A browser-based chat interface served by the same process.
+
+**Features:**
+- Real-time streaming — tokens appear as they arrive over WebSocket
+- Left sidebar — model badge, profile selector, memory search, tool list
+- Tool call badges inline in messages (yellow pill → green on completion)
+- Collapsible tool results in each message
+- Model switch indicator when ModelManager hot-swaps models
+- Profile quick-buttons (`/coder`, `/research`, `/tutor`) in top bar
+- Auto-reconnect with exponential backoff
+- Per-session history saved to `~/.personal-ai/sessions/` on disconnect
+- Mobile responsive — sidebar collapses to hamburger menu
+
+**Start:**
+
+```bash
+# From the CLI (after npm start):
+/web
+
+# Or standalone:
+npm run web
+```
+
+Then open `http://localhost:3000` in a browser.
+
+Set `PORT=8080` in `.env` to change the port.
+
+---
+
 ## Roadmap
 
 | Version | Status | Goal |
 |---|---|---|
 | v0.5 | Done | 8 providers, ModelManager auto-routing, 4 agent profiles |
-| v0.6 | Planned | Web UI — Express + WebSocket streaming chat in browser |
+| v0.6 | Done | Web UI — Express + WebSocket streaming chat in browser |
 | v0.7 | Planned | Setup wizard, onboarding polish, better error messages |
 | v0.8 | Planned | Plugin system — weather, GitHub, calendar plugins |
 | v0.9 | Planned | MCP support — connect any MCP server over stdio |

@@ -6,6 +6,7 @@
     "src/voice/**",
     "src/ui/web/**"
   ],
+  "ignoreDependencies": ["express", "cors", "ws"],
   "ignoreExports": [
     { "file": "src/core/events.ts",       "exports": ["EventMap"] },
     { "file": "src/persona/types.ts",     "exports": ["ProfileConfigSchema"] },

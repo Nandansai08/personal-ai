@@ -1,5 +1,6 @@
 // MIT License — personal-ai
 import { eventBus } from '../core/events.js'
+import { logger } from '../core/logger.js'
 import type {
   LLMProvider, ChatRequest, ChatChunk, ProviderHealth, ModelInfo, TokenUsage,
   ToolDefinition,
@@ -118,17 +119,19 @@ export class OllamaProvider implements LLMProvider {
   model:           string
   supportsToolUse: boolean
 
-  private baseUrl:     string
-  private numCtx:      number
-  private numPredict:  number
-  private temperature: number
+  private baseUrl:      string
+  private defaultModel: string
+  private numCtx:       number
+  private numPredict:   number
+  private temperature:  number
 
   constructor() {
-    this.baseUrl     = process.env['OLLAMA_BASE_URL']    ?? 'http://localhost:11434'
-    this.model       = process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b'
-    this.numCtx      = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '4096', 10)
-    this.numPredict  = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
-    this.temperature = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
+    this.baseUrl      = process.env['OLLAMA_BASE_URL']    ?? 'http://localhost:11434'
+    this.defaultModel = process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b'
+    this.model        = this.defaultModel
+    this.numCtx       = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '4096', 10)
+    this.numPredict   = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
+    this.temperature  = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
     this.supportsToolUse = isNativeToolModel(this.model)
   }
 
@@ -169,8 +172,30 @@ export class OllamaProvider implements LLMProvider {
     }
 
     if (!response.ok) {
-      yield { type: 'error', message: `Ollama HTTP ${response.status}: ${await response.text()}` }
-      return
+      const errText = await response.text()
+      // Model not pulled — fall back to default and retry once
+      if (response.status === 404 && errText.includes('not found') && body['model'] !== this.defaultModel) {
+        const missing = String(body['model'])
+        logger.warn('ollama', `model "${missing}" not found, falling back to "${this.defaultModel}" (run: ollama pull ${missing})`)
+        yield { type: 'model_switch', from: missing, to: this.defaultModel }
+        body['model'] = this.defaultModel
+        this.model = this.defaultModel
+        try {
+          response = await fetch(`${this.baseUrl}/api/chat`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          })
+        } catch (err) {
+          yield { type: 'error', message: `Ollama connection failed: ${err instanceof Error ? err.message : String(err)}` }
+          return
+        }
+        if (!response.ok) {
+          yield { type: 'error', message: `Ollama HTTP ${response.status}: ${await response.text()}` }
+          return
+        }
+      } else {
+        yield { type: 'error', message: `Ollama HTTP ${response.status}: ${errText}` }
+        return
+      }
     }
     if (!response.body) { yield { type: 'error', message: 'No response body' }; return }
 
