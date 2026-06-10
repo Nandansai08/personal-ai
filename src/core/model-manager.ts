@@ -82,7 +82,7 @@ export class ModelManager {
   }
 
   getCurrentModel(): string {
-    return this.manualOverride ?? this.profileManager?.getPreferredModel() ?? this.config.default
+    return this.manualOverride || this.profileManager?.getPreferredModel() || this.config.default
   }
 
   // fallow-ignore-next-line unused-class-member
