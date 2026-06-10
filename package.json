@@ -1,0 +1,24 @@
+{
+  "name": "personal-ai",
+  "version": "0.1.0",
+  "description": "Personal AI assistant — any model, local or cloud",
+  "type": "module",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "dev": "node --watch --loader ts-node/esm src/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0",
+    "vitest": "^1.6.0",
+    "@types/node": "^20.0.0"
+  }
+}

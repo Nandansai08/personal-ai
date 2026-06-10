@@ -1,0 +1,23 @@
+# Model routing table
+routing:
+  tools:       qwen2.5:14b
+  coding:      qwen2.5-coder:7b
+  reasoning:   qwen2.5:14b
+  chat:        gemma3:12b
+  longcontext: gemma3:12b
+  quick:       gemma3:12b
+  default:     qwen2.5:14b
+
+native_tool_prefixes:
+  - qwen2.5:
+  - qwen2.5-coder:
+  - llama3.1:
+  - llama3.2:
+  - mistral-nemo:
+  - mistral:
+
+xml_fallback_prefixes:
+  - gemma3:
+  - gemma3n:
+  - phi4:
+  - phi3:

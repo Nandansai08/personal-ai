@@ -1,0 +1,25 @@
+# Agent profiles
+profiles:
+  assistant:
+    name: assistant
+    system_prompt_addon: ""
+    preferred_model: qwen2.5:14b
+    tools_priority: []
+
+  coder:
+    name: coder
+    system_prompt_addon: "You are an expert software engineer. Write clean, idiomatic code."
+    preferred_model: qwen2.5-coder:7b
+    tools_priority: [code_exec, file_read, file_write]
+
+  researcher:
+    name: researcher
+    system_prompt_addon: "You are a thorough researcher. Cite sources. Think step by step."
+    preferred_model: gemma3:12b
+    tools_priority: [web_search, summarize]
+
+  tutor:
+    name: tutor
+    system_prompt_addon: "You are a patient tutor. Explain step by step. Check understanding."
+    preferred_model: gemma3:12b
+    tools_priority: []
