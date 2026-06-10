@@ -115,9 +115,9 @@ Copy `.env.example` to `.env`. Only configure what you use.
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | `qwen2.5:14b` | Default model (tools, reasoning) |
-| `OLLAMA_CODER_MODEL` | `qwen2.5-coder:7b` | Model for coding tasks |
+| `OLLAMA_CODER_MODEL` | `qwen2.5:14b` | Model for coding tasks (falls back to default) |
 | `OLLAMA_CHAT_MODEL` | `gemma3:12b` | Model for chat, quick, long-context |
-| `OLLAMA_NUM_CTX` | `4096` | Context window size |
+| `OLLAMA_NUM_CTX` | `2048` | Context window size |
 | `OLLAMA_NUM_PREDICT` | `1024` | Max tokens per response |
 | `OLLAMA_TEMPERATURE` | `0.7` | Sampling temperature |
 
@@ -181,8 +181,8 @@ Profiles override the system prompt, model, tool priority, and temperature.
 
 | Profile | Command | Model | Best For |
 |---|---|---|---|
-| `assistant` | `/profile assistant` | qwen2.5:14b | General tasks, daily use |
-| `coder` | `/coder` | qwen2.5-coder:7b | Writing code, debugging, TypeScript |
+| `assistant` | `/profile assistant` | auto-routed | General tasks, daily use |
+| `coder` | `/coder` | qwen2.5:14b | Writing code, debugging, TypeScript |
 | `researcher` | `/research` | gemma3:12b | Deep research, multi-angle analysis |
 | `tutor` | `/tutor` | gemma3:12b | Step-by-step teaching, guided explanation |
 
@@ -326,32 +326,43 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full provider checklist.
 
 ## Web UI
 
-A browser-based chat interface served by the same process.
-
-**Features:**
-- Real-time streaming — tokens appear as they arrive over WebSocket
-- Left sidebar — model badge, profile selector, memory search, tool list
-- Tool call badges inline in messages (yellow pill → green on completion)
-- Collapsible tool results in each message
-- Model switch indicator when ModelManager hot-swaps models
-- Profile quick-buttons (`/coder`, `/research`, `/tutor`) in top bar
-- Auto-reconnect with exponential backoff
-- Per-session history saved to `~/.personal-ai/sessions/` on disconnect
-- Mobile responsive — sidebar collapses to hamburger menu
-
-**Start:**
+Multi-view browser interface served by the same Node.js process. Split theme: dark nav sidebar, light main content, dark live-events panel.
 
 ```bash
-# From the CLI (after npm start):
-/web
-
-# Or standalone:
+# Standalone (recommended):
 npm run web
+# → http://localhost:3000
 ```
 
-Then open `http://localhost:3000` in a browser.
+**Views:**
 
-Set `PORT=8080` in `.env` to change the port.
+| View | Description |
+|---|---|
+| **Chat** | Streaming chat with message avatars, tool call badges, model-switch pills |
+| **Code Workspace** | Editor with line numbers, file tabs, AI assistant panel |
+| **Research** | Brave Search integration, memory panel, Knowledge Graph SVG |
+| **Memory / Vault** | Vault Index — browse, search, export memories; Vector Topology graph |
+| **Settings** | Provider cards with status badges, Hardware Context, task routing table |
+
+**Live Events panel (right sidebar):**
+- Real-time event stream: `model_selected`, `tool_called`, `tool_result`, `done`, `error`
+- `STREAMING` badge while response is in-flight
+- GPU UTIL card — live VRAM usage from Ollama `/api/ps`
+- Tokens/sec and context-window fill bars
+
+**Hardware Context (Settings → Hardware):**
+- RAM usage bar from Node.js `os` module — no external tools needed
+- CPU load average, thermal status (NOMINAL / WARM / HIGH), swap latency estimate
+- Auto-refreshes every 30 s
+
+**Task routing table** shows active model per task type with fallback provider column. Populated live from `/api/stats`.
+
+**Performance optimizations:**
+- `keep_alive: -1` keeps Ollama models in VRAM between requests
+- Both models warm-up on server start — first message latency ~2–5 s instead of 30–50 s
+- `OLLAMA_NUM_CTX=2048` default — raise to 4096+ for long conversations
+
+Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launch.json` for dev.
 
 ---
 

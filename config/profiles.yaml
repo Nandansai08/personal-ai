@@ -5,7 +5,7 @@ profiles:
     name: "Assistant"
     description: "General purpose daily assistant"
     system_addon: ""
-    preferred_model: "qwen2.5:14b"
+    preferred_model: ""
     tools_priority:
       - tasks
       - notes
@@ -22,7 +22,7 @@ profiles:
       Include error handling and types.
       Explain key decisions briefly.
       Default language: TypeScript unless specified.
-    preferred_model: "qwen2.5-coder:7b"
+    preferred_model: "qwen2.5:14b"
     tools_priority:
       - file_reader
       - web_search

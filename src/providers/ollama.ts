@@ -129,7 +129,7 @@ export class OllamaProvider implements LLMProvider {
     this.baseUrl      = process.env['OLLAMA_BASE_URL']    ?? 'http://localhost:11434'
     this.defaultModel = process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b'
     this.model        = this.defaultModel
-    this.numCtx       = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '4096', 10)
+    this.numCtx       = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '2048', 10)
     this.numPredict   = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
     this.temperature  = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
     this.supportsToolUse = isNativeToolModel(this.model)
@@ -147,10 +147,11 @@ export class OllamaProvider implements LLMProvider {
     const useXml    = !useNative && (request.tools?.length ?? 0) > 0
 
     const body: Record<string, unknown> = {
-      model:    this.model,
-      messages: buildMessages(request, useXml),
-      stream:   true,
-      options:  { num_ctx: this.numCtx, num_predict: this.numPredict, temperature: request.temperature ?? this.temperature },
+      model:      this.model,
+      messages:   buildMessages(request, useXml),
+      stream:     true,
+      keep_alive: -1,
+      options:    { num_ctx: this.numCtx, num_predict: this.numPredict, temperature: request.temperature ?? this.temperature },
     }
     if (useNative && request.tools) {
       body['tools'] = request.tools.map(t => ({
@@ -222,6 +223,19 @@ export class OllamaProvider implements LLMProvider {
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - start, model: this.model, error: String(err) }
     }
+  }
+
+  /** Pre-load model into RAM so first real request is fast. */
+  async warmUp(model?: string): Promise<void> {
+    const target = model ?? this.model
+    try {
+      await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: target, prompt: '', keep_alive: -1 }),
+      })
+      logger.debug('ollama', `warmed up ${target}`)
+    } catch { /* non-fatal */ }
   }
 
   async listModels(): Promise<ModelInfo[]> {

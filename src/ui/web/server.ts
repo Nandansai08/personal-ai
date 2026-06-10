@@ -1,5 +1,6 @@
 // MIT License — personal-ai
 import http from 'node:http'
+import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -140,6 +141,33 @@ export function createWebServer(opts: WebServerOptions): http.Server {
         ? registry.getAll().map(t => ({ name: t.definition.name, description: t.definition.description }))
         : [],
     })
+  })
+
+  app.get('/api/system', (_req, res) => {
+    const totalMem  = os.totalmem()
+    const freeMem   = os.freemem()
+    const usedMem   = totalMem - freeMem
+    const cpus      = os.cpus()
+    const loadAvg1m = os.loadavg()[0] ?? 0
+    res.json({
+      totalMemMb:  Math.round(totalMem / 1024 / 1024),
+      freeMemMb:   Math.round(freeMem  / 1024 / 1024),
+      usedMemMb:   Math.round(usedMem  / 1024 / 1024),
+      usedMemPct:  Math.round((usedMem / totalMem) * 100),
+      cpuModel:    cpus[0]?.model ?? 'Unknown',
+      cpuCount:    cpus.length,
+      loadAvg1m:   Math.round(loadAvg1m * 100) / 100,
+      platform:    os.platform(),
+      arch:        os.arch(),
+    })
+  })
+
+  app.get('/api/ollama/ps', (_req, res) => {
+    const ollamaUrl = process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434'
+    void fetch(`${ollamaUrl}/api/ps`)
+      .then(r => r.json())
+      .then(data => res.json(data))
+      .catch(() => res.json({ models: [] }))
   })
 
   // ── WebSocket chat ──────────────────────────────────────────────────

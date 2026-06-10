@@ -65,6 +65,13 @@ async function main(): Promise<void> {
       }, profileManager)
     : undefined
 
+  // Pre-load both models so first request is fast
+  if ('warmUp' in provider && typeof (provider as Record<string, unknown>)['warmUp'] === 'function') {
+    const warm = provider as unknown as { warmUp(m: string): Promise<void> }
+    void warm.warmUp(defaultModel)
+    if (provider.name === 'ollama' && chatModel !== defaultModel) void warm.warmUp(chatModel)
+  }
+
   const port = parseInt(process.env['PORT'] ?? '3000', 10)
 
   createWebServer({

@@ -104,7 +104,7 @@ export function defaultModelsConfig(): ModelsConfig {
     default: process.env['OLLAMA_MODEL'] ?? 'qwen2.5:14b',
     tasks: {
       tools:       process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b',
-      coding:      process.env['OLLAMA_CODER_MODEL'] ?? 'qwen2.5-coder:7b',
+      coding:      process.env['OLLAMA_CODER_MODEL'] ?? 'qwen2.5:14b',
       reasoning:   process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b',
       chat:        process.env['OLLAMA_CHAT_MODEL']  ?? 'gemma3:12b',
       longcontext: process.env['OLLAMA_CHAT_MODEL']  ?? 'gemma3:12b',
