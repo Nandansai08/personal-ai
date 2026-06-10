@@ -1,132 +1,346 @@
 # PersonalAI
 
-> Local-first personal AI assistant. Any model, any provider.
+**Local-first AI assistant. Any provider. Runs on your machine.**
 
-Run Ollama locally, swap to Claude or GPT with one env var. No cloud required.
-
----
-
-## What's in v0.4.0
-
-- **Agentic tool loop** — model calls tools, sees results, continues (up to 6 iterations)
-- **Web search** — Serper (primary) → Brave → DuckDuckGo fallback
-- **Notes** — save/get/list/delete notes in SQLite
-- **Tasks** — create/update/list tasks with priority and status
-- **Calculator** — safe math expression evaluator
-- **File reader** — read local text files (max 100KB)
-- **Memory tool** — model can save/search memories directly
-- **Live spinner** — animated indicator while model thinks
-- **Input lock** — keystrokes blocked during streaming (no mix-in glitch)
-- **Personalized persona** — casual tone, friend-style replies
-
-Previous milestones:
-- **v0.3** — persona profiles (`/coder`, `/researcher`, `/tutor`), hot-reload config
-- **v0.2** — SQLite memory, facts persist across sessions
-- **v0.1** — Ollama streaming, native + XML tool call formats, CLI, logging
+No cloud lock-in. Switch between Ollama, Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, or Together with one env var. Auto-routes tasks to the right model — qwen2.5:14b for tools/reasoning, gemma3:12b for chat/long context.
 
 ---
 
-## Roadmap
+## Providers
 
-| Version | What ships |
-|---------|-----------|
-| ~~**v0.1**~~ | Core — Ollama streaming, CLI, logging |
-| ~~**v0.2**~~ | SQLite memory — facts saved across sessions |
-| ~~**v0.3**~~ | Persona profiles — `/coder`, `/researcher`, `/tutor` |
-| ~~**v0.4**~~ | Tool system — web search, notes, tasks, calculator, file reader |
-| **v0.5** | All API providers — Anthropic, OpenAI, Groq, Gemini, Mistral |
-| **v0.6** | Web UI — browser chat interface |
-| **v0.7** | Setup wizard — guided first-run |
-| **v0.8** | Plugins — weather, GitHub, calendar |
-| **v0.9** | MCP server support |
-| **v1.0** | Semantic memory (embeddings) + voice |
+| Provider | Free Tier | Local | Tool Use | Speed |
+|---|---|---|---|---|
+| **Ollama** | Unlimited | Yes | Native | Fast (GPU-dependent) |
+| **Anthropic** | Paid only | No | Native | Fast |
+| **OpenAI** | Paid only | No | Native | Fast |
+| **Groq** | 14k req/day | No | Native | Very fast |
+| **Gemini** | 1500 req/day | No | Native | Fast |
+| **Mistral** | Paid only | No | Native | Fast |
+| **LM Studio** | Unlimited | Yes | No | Fast (GPU-dependent) |
+| **Together.ai** | $1 credit | No | No | Fast |
+
+See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models, and free tier details.
 
 ---
 
-## Prerequisites
+## Features
 
-- [Node.js 20+](https://nodejs.org/)
-- [Ollama](https://ollama.ai/) running locally **or** an API key for another provider
-
-Recommended local models (16GB RAM):
-```
-ollama pull qwen2.5:14b    # primary — tools, coding, reasoning
-ollama pull gemma3:12b     # secondary — chat, long context
-```
+- **8 providers** — Ollama, Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, Together; swap with `PROVIDER=groq`
+- **Auto model routing** — ModelManager detects task type per message and hot-switches models (qwen2.5:14b for tools, gemma3:12b for chat)
+- **4 agent profiles** — `assistant`, `coder`, `researcher`, `tutor`; each overrides system prompt, model, and tool priority
+- **Persistent memory** — SQLite-backed long-term memory; facts, preferences, context, and episodic entries survive restarts
+- **6 built-in tools** — web search (Serper → Brave → DuckDuckGo), notes, tasks, calculator, file reader, memory save
+- **Streaming output** — token-by-token display with animated spinner and tool call progress indicators
+- **Hot-reload config** — edit `persona.yaml` or `profiles.yaml` while running; changes apply to the next message
+- **Observability** — every action emits typed events; daily log files at `~/.personal-ai/logs/`
+- **Provider-blind core** — `src/core/`, `src/memory/`, `src/tools/`, `src/ui/` never import provider SDKs
+- **No cloud required** — works entirely offline with Ollama and local models
 
 ---
 
 ## Quick Start
 
+**1. Clone and install**
+
 ```bash
-# 1. Clone
-git clone https://github.com/Nandansai08/PersonalAi.git
-cd PersonalAi
-
-# 2. Install
+git clone https://github.com/Nandansai08/personal-ai.git
+cd personal-ai
 npm install
+```
 
-# 3. Configure
-cp .env.example .env
-# Edit .env — set SERPER_API_KEY for web search (free at serper.dev)
+**2. Set up Ollama** (skip if using an API provider)
 
-# 4. Pull a model
+```bash
+# Install from https://ollama.ai
 ollama pull qwen2.5:14b
+ollama pull gemma3:12b
+```
 
-# 5. Start
+**3. Configure `.env`**
+
+```bash
+cp .env.example .env
+# Edit .env — set PROVIDER and any required API keys
+```
+
+**4. (Optional) Add a search key for web search**
+
+```
+# Serper.dev — free 2500 queries/month, no card required
+# https://serper.dev → get key → SERPER_API_KEY=your_key
+```
+
+**5. Customize your persona** (optional)
+
+Edit `config/persona.yaml` — set your name, tone, and expertise areas.
+
+**6. Build**
+
+```bash
+npm run build
+```
+
+**7. Start**
+
+```bash
 npm start
 ```
 
----
+**8. Try it**
 
-## Web Search Setup
-
-Web search works out of the box with a free Serper key (no credit card):
-
-1. Sign up at [serper.dev](https://serper.dev) — 2500 free searches/month
-2. Copy your API key
-3. Add to `.env`: `SERPER_API_KEY=your_key_here`
-
-Falls back to Brave Search (if `BRAVE_SEARCH_API_KEY` set), then DuckDuckGo.
+```
+[qwen2.5:14b] > who won today's cricket match?
+[qwen2.5:14b] > /profile coder
+[qwen2.5-coder:7b|coder] > write a debounce function in TypeScript
+[qwen2.5-coder:7b|coder] > /model gemma3:12b
+[gemma3:12b|coder] > explain async generators
+```
 
 ---
 
-## CLI Commands
+## Environment Variables
+
+Copy `.env.example` to `.env`. Only configure what you use.
+
+### Core
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROVIDER` | `ollama` | Active provider: `ollama` \| `anthropic` \| `openai` \| `groq` \| `gemini` \| `mistral` \| `lmstudio` \| `together` |
+| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
+
+### Ollama
+
+| Variable | Default | Description |
+|---|---|---|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `qwen2.5:14b` | Default model (tools, reasoning) |
+| `OLLAMA_CODER_MODEL` | `qwen2.5-coder:7b` | Model for coding tasks |
+| `OLLAMA_CHAT_MODEL` | `gemma3:12b` | Model for chat, quick, long-context |
+| `OLLAMA_NUM_CTX` | `4096` | Context window size |
+| `OLLAMA_NUM_PREDICT` | `1024` | Max tokens per response |
+| `OLLAMA_TEMPERATURE` | `0.7` | Sampling temperature |
+
+### API Providers
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
+| `ANTHROPIC_MODEL` | Default: `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | Default: `gpt-4o-mini` |
+| `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys) |
+| `GROQ_MODEL` | Default: `llama-3.3-70b-versatile` |
+| `GEMINI_API_KEY` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| `GEMINI_MODEL` | Default: `gemini-2.0-flash` |
+| `MISTRAL_API_KEY` | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys/) |
+| `MISTRAL_MODEL` | Default: `mistral-large-latest` |
+| `LMSTUDIO_BASE_URL` | Default: `http://localhost:1234/v1` |
+| `LMSTUDIO_MODEL` | Default: `local-model` |
+| `TOGETHER_API_KEY` | [api.together.xyz/settings/api-keys](https://api.together.xyz/settings/api-keys) |
+| `TOGETHER_MODEL` | Default: `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+
+### Search
+
+| Variable | Description |
+|---|---|
+| `SERPER_API_KEY` | Primary — [serper.dev](https://serper.dev), free 2500/month |
+| `BRAVE_SEARCH_API_KEY` | Fallback — [api.search.brave.com](https://api.search.brave.com), free 2000/month |
+
+---
+
+## Persona (`config/persona.yaml`)
+
+Controls the assistant's name, tone, and response style.
+
+```yaml
+name: "Aria"           # Assistant name
+user_name: "Nanda"     # Your name — used in memory and greetings
+
+tone: "casual, direct, like a knowledgeable friend"
+
+expertise:             # Topic areas
+  - software development
+  - cricket and sports
+
+avoid:                 # Phrases to never say
+  - "Certainly!"
+  - "Great question!"
+
+custom_instructions: | # Appended verbatim to system prompt
+  Talk to Nanda like a friend, not a formal assistant.
+```
+
+Changes hot-reload — no restart required.
+
+---
+
+## Profiles (`config/profiles.yaml`)
+
+Profiles override the system prompt, model, tool priority, and temperature.
+
+| Profile | Command | Model | Best For |
+|---|---|---|---|
+| `assistant` | `/profile assistant` | qwen2.5:14b | General tasks, daily use |
+| `coder` | `/coder` | qwen2.5-coder:7b | Writing code, debugging, TypeScript |
+| `researcher` | `/research` | gemma3:12b | Deep research, multi-angle analysis |
+| `tutor` | `/tutor` | gemma3:12b | Step-by-step teaching, guided explanation |
+
+Switch profile mid-session — takes effect on the next message.
+
+---
+
+## Slash Commands
 
 | Command | Description |
-|---------|-------------|
+|---|---|
+| `/help` | Show all commands |
 | `/exit` | Quit |
 | `/clear` | Clear conversation history |
-| `/models` | List available models |
-| `/health` | Check provider connectivity |
-| `/logs` | Show log file path |
-| `/tools` | List registered tools |
-| `/memory` | Memory stats |
-| `/memory list` | Recent memories |
-| `/memory search <q>` | Search memories |
-| `/memory save <type> <content>` | Save a memory |
+| **Model** | |
+| `/models` | List models available from the current provider |
+| `/model` | Show current model routing (mode + task mappings) |
+| `/model <name>` | Pin to a specific model (e.g. `/model gemma3:4b`) |
+| `/model auto` | Resume automatic task-based model routing |
+| **Profiles** | |
 | `/profile` | Show active profile |
-| `/profile list` | All profiles |
-| `/profile <name>` | Switch profile |
+| `/profile list` | List all profiles |
+| `/profile <name>` | Switch to a profile by name |
 | `/coder` | Switch to coder profile |
 | `/research` | Switch to researcher profile |
 | `/tutor` | Switch to tutor profile |
-| `/help` | Show all commands |
+| **Memory** | |
+| `/memory` | Show memory stats |
+| `/memory list` | List 10 most recent memories |
+| `/memory search <q>` | Search memories by keyword |
+| `/memory save <type> <content>` | Save a memory (`fact` \| `preference` \| `context` \| `episodic`) |
+| **Tools** | |
+| `/tools` | List registered tools |
+| **Debug** | |
+| `/health` | Check provider connectivity and latency |
+| `/logs` | Show path to today's log file |
 
 ---
 
-## Configuration
+## Architecture
 
-Key `.env` settings:
-
-```env
-OLLAMA_MODEL=qwen2.5:14b      # model to use
-OLLAMA_NUM_CTX=4096            # context window (reduce for speed)
-OLLAMA_NUM_PREDICT=1024        # max output tokens
-SERPER_API_KEY=                # web search (free at serper.dev)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         src/index.ts                            │
+│     loads config · wires provider + engine + CLI + tools        │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+          ┌──────────────────┼──────────────────────┐
+          ▼                  ▼                       ▼
+┌─────────────────┐  ┌──────────────────┐  ┌───────────────────┐
+│  src/ui/cli.ts  │  │  src/core/       │  │  src/providers/   │
+│                 │  │                  │  │                   │
+│  readline CLI   │  │  assistant.ts    │  │  interface.ts     │
+│  /commands      │  │  context.ts      │  │  factory.ts       │
+│  spinner        │  │  model-manager   │  │  ollama.ts        │
+│  tool display   │  │  events.ts       │  │  anthropic.ts     │
+└────────┬────────┘  │  logger.ts       │  │  openai-compat.ts │
+         │           └──────┬───────────┘  │  openai.ts        │
+         │                  │              │  groq.ts          │
+         │                  ▼              │  gemini.ts        │
+         │        ┌─────────────────┐      │  mistral.ts       │
+         │        │  src/memory/    │      │  lmstudio.ts      │
+         │        │                 │      │  together.ts      │
+         │        │  long-term.ts   │      └───────────────────┘
+         │        │  short-term.ts  │
+         │        │  types.ts       │      ┌───────────────────┐
+         │        └─────────────────┘      │  src/persona/     │
+         │                                 │                   │
+         │        ┌─────────────────┐      │  profiles.ts      │
+         └───────▶│  src/tools/     │      │  system-prompt.ts │
+                  │                 │      │  loader.ts        │
+                  │  registry.ts    │      └───────────────────┘
+                  │  parser.ts      │
+                  │  web-search.ts  │
+                  │  notes.ts       │
+                  │  tasks.ts       │
+                  │  calculator.ts  │
+                  │  file-reader.ts │
+                  │  memory-tool.ts │
+                  └─────────────────┘
 ```
 
-Persona and profiles are in `config/persona.yaml` and `config/profiles.yaml` — hot-reloaded on save.
+**Golden rule:** `src/core/`, `src/memory/`, `src/tools/`, `src/ui/` never import provider SDKs. All SDK imports live in `src/providers/*.ts`.
+
+---
+
+## Adding a Custom Provider
+
+**1. Create `src/providers/myprovider.ts`:**
+
+```typescript
+// MIT License — personal-ai
+import type { LLMProvider, ChatRequest, ChatChunk, ProviderHealth } from './interface.js'
+import { eventBus } from '../core/events.js'
+
+// fallow-ignore-next-line unused-export
+export class MyProvider implements LLMProvider {
+  readonly name             = 'myprovider'
+  readonly supportsToolUse  = false
+  readonly supportsStreaming = true
+  readonly model: string
+
+  constructor() {
+    this.model = process.env['MY_MODEL'] ?? 'my-model-name'
+  }
+
+  async *chat(request: ChatRequest): AsyncGenerator<ChatChunk> {
+    const startMs = Date.now()
+    // call your API, yield chunks
+    yield { type: 'text', delta: 'hello' }
+    yield { type: 'done', usage: { input: 10, output: 5 } }
+    eventBus.emit('provider_latency', {
+      provider: 'myprovider', model: this.model, latencyMs: Date.now() - startMs,
+    })
+  }
+
+  async healthCheck(): Promise<ProviderHealth> {
+    return { ok: true, latencyMs: 0, model: this.model }
+  }
+}
+```
+
+**2. Register in `src/providers/factory.ts`:**
+
+```typescript
+// Add to ProviderName union:
+type ProviderName = '...' | 'myprovider'
+
+// Add to PROVIDER_INFO:
+myprovider: { envKey: 'MY_API_KEY', signupUrl: 'https://myprovider.com/keys' },
+
+// Add to loadProvider():
+case 'myprovider': return new (await import('./myprovider.js')).MyProvider()
+```
+
+**3.** Set `PROVIDER=myprovider` in `.env`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full provider checklist.
+
+---
+
+## Roadmap
+
+| Version | Status | Goal |
+|---|---|---|
+| v0.5 | Done | 8 providers, ModelManager auto-routing, 4 agent profiles |
+| v0.6 | Planned | Web UI — Express + WebSocket streaming chat in browser |
+| v0.7 | Planned | Setup wizard, onboarding polish, better error messages |
+| v0.8 | Planned | Plugin system — weather, GitHub, calendar plugins |
+| v0.9 | Planned | MCP support — connect any MCP server over stdio |
+| v1.1 | Planned | Semantic memory with sqlite-vec embeddings |
+| v1.2 | Planned | Voice — STT + TTS + wake word |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
