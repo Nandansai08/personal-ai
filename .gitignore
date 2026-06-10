@@ -6,3 +6,6 @@ data/
 sessions/
 .personal-ai/
 *.log
+coverage/
+fallow.config.json
+.fallow.json
