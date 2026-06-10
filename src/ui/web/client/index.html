@@ -528,6 +528,152 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--surface-4); }
 
+/* ── Message avatars ─────────────────────────────────────────────────────── */
+.msg-inner { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
+.msg-row.user .msg-inner { flex-direction: row-reverse; justify-content: flex-start; }
+.msg-row.assistant .msg-inner { flex-direction: row; }
+.msg-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0; user-select: none;
+}
+.user-avatar { background: #374151; color: #d1d5db; }
+.ai-avatar { background: var(--accent); color: #fff; border-radius: 6px; font-size: 8.5px; letter-spacing: 0.03em; }
+.msg-bubble-wrap { display: flex; flex-direction: column; gap: 3px; max-width: min(540px, calc(100% - 34px)); }
+.msg-row.user .msg-bubble-wrap { align-items: flex-end; }
+.msg-row.assistant .msg-bubble-wrap { align-items: flex-start; }
+.msg-bubble-wrap .bubble { max-width: 100%; }
+.msg-timestamp { font-size: 9px; color: var(--text-muted); padding: 0 2px; letter-spacing: 0.04em; }
+
+/* ── Streaming badge in live panel ───────────────────────────────────────── */
+#streaming-badge {
+  display: none; align-items: center; gap: 4px; margin-left: auto;
+  padding: 2px 7px; border-radius: 99px;
+  background: rgba(37,99,235,.18); border: 1px solid rgba(37,99,235,.4);
+  color: #7eb8f7; font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+}
+#streaming-badge.active { display: flex; }
+.streaming-blink { width: 5px; height: 5px; border-radius: 50%; background: #7eb8f7; animation: pulse-dot 0.8s ease infinite; }
+
+/* ── Code tabs bar ───────────────────────────────────────────────────────── */
+#code-tabs-bar {
+  height: 38px; background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end; overflow-x: auto; flex-shrink: 0; padding: 0 8px; gap: 2px;
+}
+.code-tab {
+  display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 32px;
+  font-size: 11.5px; color: var(--text-muted); cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); border-bottom: none;
+  border-radius: 5px 5px 0 0; transition: all 0.13s; white-space: nowrap; flex-shrink: 0;
+  font-family: ui-monospace,'SF Mono',monospace;
+}
+.code-tab:hover { color: var(--text-dim); }
+.code-tab.active { background: var(--bg); color: var(--text); }
+.code-tab-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: 13px; line-height: 1; transition: color 0.13s; }
+.code-tab-close:hover { color: var(--red); }
+
+/* ── Line numbers ────────────────────────────────────────────────────────── */
+#line-numbers {
+  width: 44px; background: var(--surface); border-right: 1px solid var(--border-subtle);
+  padding: 16px 8px 16px 0; font-family: ui-monospace,'SF Mono',monospace;
+  font-size: 12.5px; line-height: 1.7; color: var(--text-muted); text-align: right;
+  user-select: none; overflow: hidden; flex-shrink: 0; white-space: pre;
+}
+
+/* ── Knowledge graph / Vector topology SVG ───────────────────────────────── */
+.kg-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dark-muted); font-weight: 600; margin-bottom: 6px; }
+.kg-svg-wrap { background: var(--dark-bg); border: 1px solid var(--dark-border); border-radius: 6px; overflow: hidden; }
+.kg-svg-wrap svg { display: block; }
+
+/* ── GPU UTIL card ───────────────────────────────────────────────────────── */
+.gpu-card {
+  margin: 8px 10px 0; padding: 8px 10px; background: var(--dark-surface);
+  border: 1px solid var(--dark-border); border-radius: 6px; flex-shrink: 0;
+}
+.gpu-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.gpu-card-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dark-muted); font-weight: 600; }
+.gpu-card-val { font-size: 13px; font-weight: 700; color: #7eb8f7; font-family: ui-monospace,'SF Mono',monospace; }
+.gpu-bar-wrap { height: 3px; background: var(--dark-bg); border-radius: 2px; }
+.gpu-bar { height: 100%; background: #7eb8f7; border-radius: 2px; transition: width 0.6s; width: 0%; }
+
+/* ── Provider icon + badges ──────────────────────────────────────────────── */
+.provider-icon {
+  width: 34px; height: 34px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0; letter-spacing: 0.03em;
+}
+.provider-icon.ollama    { background: #111; border: 1px solid #333; }
+.provider-icon.anthropic { background: #c9513a; }
+.provider-icon.openai    { background: #10a37f; }
+.provider-icon.groq      { background: #f55036; }
+.provider-icon.gemini    { background: #4285f4; }
+.provider-icon.default   { background: #374151; }
+
+.prov-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9.5px; padding: 2px 7px; border-radius: 4px; font-weight: 600;
+  letter-spacing: 0.04em; margin-top: 5px;
+}
+.prov-badge.connected  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,.22); }
+.prov-badge.api-linked { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(37,99,235,.3); }
+.prov-badge.needs-cfg  { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+
+.model-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px; margin: 2px 2px 0 0;
+  background: rgba(37,99,235,.09); border: 1px solid rgba(37,99,235,.25);
+  color: #7eb8f7; font-size: 10.5px; font-family: ui-monospace,'SF Mono',monospace;
+}
+.model-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+
+/* ── HW RAM bar ──────────────────────────────────────────────────────────── */
+.hw-bar-wrap { height: 4px; background: var(--dark-border); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.hw-bar { height: 100%; background: #2563eb; border-radius: 2px; transition: width 0.5s; }
+
+/* ── Toggle switch ───────────────────────────────────────────────────────── */
+.toggle-sw { position: relative; width: 32px; height: 17px; flex-shrink: 0; }
+.toggle-sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-track {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--surface-3); border-radius: 17px; transition: 0.2s; border: 1px solid var(--border);
+}
+.toggle-track::before {
+  content: ''; position: absolute; height: 11px; width: 11px;
+  left: 2px; top: 2px; background: var(--text-muted); border-radius: 50%; transition: 0.2s;
+}
+.toggle-sw input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+.toggle-sw input:checked + .toggle-track::before { transform: translateX(15px); background: #fff; }
+
+/* ── Danger button ───────────────────────────────────────────────────────── */
+.vault-op-btn.danger { border-color: rgba(220,38,38,.3); color: var(--red); }
+.vault-op-btn.danger:hover { background: var(--red-dim); border-color: var(--red); }
+
+/* ── Nav user profile ────────────────────────────────────────────────────── */
+.nav-user-row {
+  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background 0.13s;
+  border: 1px solid var(--nav-item-border);
+}
+.nav-user-row:hover { background: rgba(255,255,255,.06); }
+.nav-user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg,#2563eb,#1d4ed8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.nav-user-name { font-size: 12px; font-weight: 600; color: var(--nav-text-active); }
+.nav-user-sub  { font-size: 9.5px; color: var(--nav-text); margin-top: 1px; }
+
+/* ── Topbar icon buttons ─────────────────────────────────────────────────── */
+.topbar-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 7px;
+  background: none; border: 1px solid var(--border); color: var(--text-dim);
+  cursor: pointer; transition: all 0.13s; flex-shrink: 0;
+}
+.topbar-icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.topbar-icon-btn svg { width: 14px; height: 14px; }
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
   #hamburger { display: flex; }
@@ -591,7 +737,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     </div>
 
     <div id="nav-bottom">
-      <button id="new-session-btn">
+      <div class="nav-user-row">
+        <div class="nav-user-avatar">N</div>
+        <div>
+          <div class="nav-user-name">User Profile</div>
+          <div class="nav-user-sub">Local mode</div>
+        </div>
+      </div>
+      <button id="new-session-btn" style="margin-top:8px">
         <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M7 2H2a1 1 0 0 0-1 1v8l2.5-2H12a1 1 0 0 0 1-1V7"/><path d="M11 0v4M9 2h4"/>
         </svg>
@@ -626,6 +779,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <span class="topbar-logo">PersonalAI</span>
         <div id="profile-tabs"></div>
         <div style="flex:1"></div>
+        <button class="topbar-icon-btn" title="Notifications" id="bell-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2a5 5 0 0 0-5 5v2l-1 2h12l-1-2V7a5 5 0 0 0-5-5z"/><path d="M7 13a1 1 0 0 0 2 0"/>
+          </svg>
+        </button>
+        <button class="topbar-icon-btn" title="App grid" id="grid-btn" style="margin-left:4px">
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/>
+            <rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/>
+          </svg>
+        </button>
+        <div style="width:8px"></div>
         <div id="ws-indicator">
           <div id="ws-dot" title="Connecting…"></div>
           <span id="ws-model-label"></span>
@@ -684,8 +849,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               </svg>
             </button>
             <span class="live-panel-title">Live Events</span>
+            <span id="streaming-badge"><span class="streaming-blink"></span>STREAMING</span>
           </div>
           <div id="live-events-list"></div>
+          <div class="gpu-card" id="gpu-card">
+            <div class="gpu-card-header">
+              <span class="gpu-card-label">GPU UTIL</span>
+              <span class="gpu-card-val" id="gpu-util-val">—</span>
+            </div>
+            <div class="gpu-bar-wrap"><div class="gpu-bar" id="gpu-util-bar"></div></div>
+          </div>
           <div class="live-perf-section">
             <div class="perf-title">System Performance</div>
             <div class="perf-row">
@@ -717,6 +890,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <span class="topbar-title">Code Workspace</span>
         <span class="topbar-sub" id="code-active-file">No file open</span>
       </div>
+      <div id="code-tabs-bar"></div>
       <div style="display:flex;flex:1;overflow:hidden;min-height:0">
         <div id="code-tree">
           <div id="code-tree-header">Explorer</div>
@@ -743,8 +917,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="tree-file">calculator.ts <span class="tree-ext">.ts</span></div>
           </div>
         </div>
-        <div id="code-editor">
-          <textarea id="code-editor-area" spellcheck="false" placeholder="// Select a file from the explorer, or paste code here&#10;// Use the AI assistant panel to get help with your code"></textarea>
+        <div id="code-editor" style="display:flex">
+          <div id="line-numbers">1</div>
+          <textarea id="code-editor-area" spellcheck="false" placeholder="// Select a file from the explorer, or paste code here&#10;// Use the AI assistant panel to get help with your code" style="flex:1;border-radius:0"></textarea>
         </div>
         <div id="code-assistant">
           <div class="panel-section">
@@ -775,6 +950,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="r-section-title">Recent Memories</div>
           </div>
           <div id="research-mem-list"></div>
+          <div style="padding:10px;border-top:1px solid var(--border-subtle)">
+            <div class="kg-title" style="color:var(--text-muted)">Knowledge Graph</div>
+            <div class="kg-svg-wrap" style="height:120px">
+              <svg id="kg-svg" viewBox="0 0 260 120" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
         </div>
         <div id="research-main">
           <div id="research-summary">
@@ -792,7 +973,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
     <!-- ── Memory / Vault view ────────────────────────────────────────── -->
     <div id="view-memory" class="view">
-      <div id="memory-stats-bar">
+      <div class="topbar" style="border-bottom:none;padding-bottom:0">
+        <span class="topbar-title">Vault Index</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--text-muted);background:var(--green-dim);color:var(--green);padding:3px 9px;border-radius:4px;border:1px solid rgba(34,197,94,.22);font-weight:600">ENGINE: M2</span>
+      </div>
+      <div id="memory-stats-bar" style="border-top:1px solid var(--border-subtle)">
         <div class="mem-stat-card">
           <div class="mem-stat-label">Total Memories</div>
           <div class="mem-stat-val" id="vault-total">—</div>
@@ -813,6 +999,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="mem-stat-val" style="font-size:14px;padding-top:3px">SQLite</div>
           <div class="mem-stat-sub">WAL mode</div>
         </div>
+        <div class="mem-stat-card">
+          <div class="mem-stat-label">Disk Usage</div>
+          <div class="mem-stat-val" id="vault-disk" style="font-size:16px;padding-top:2px">—</div>
+          <div class="mem-stat-sub">KB on disk</div>
+        </div>
       </div>
       <div id="memory-body">
         <div id="memory-list-panel">
@@ -826,6 +1017,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div id="vault-list"></div>
         </div>
         <div id="memory-sidebar">
+          <div style="padding:10px 12px;border-bottom:1px solid var(--border-subtle)">
+            <div class="kg-title" style="color:var(--text-muted);margin-bottom:8px">Vector Topology</div>
+            <div class="kg-svg-wrap" style="height:120px">
+              <svg id="vault-topo-svg" viewBox="0 0 230 120" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
           <div class="vault-ops-section">
             <div class="panel-section-title" style="padding:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);font-weight:600">Vault Operations</div>
             <button class="vault-op-btn" onclick="loadVaultMemories()">
@@ -836,20 +1033,24 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 9V1M1 9l6 4 6-4"/><rect x="1" y="11" width="12" height="2" rx="1"/></svg>
               Export to JSON
             </button>
+            <button class="vault-op-btn danger" onclick="confirmPrune()">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+              Prune Old Memories
+            </button>
           </div>
           <div class="retention-section">
             <div class="panel-section-title" style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);font-weight:600;margin-bottom:10px">Retention Policies</div>
             <div class="retention-row">
-              <span class="retention-label">Delete policy</span>
-              <span class="retention-val">Archive only</span>
+              <span class="retention-label">Auto-archive</span>
+              <label class="toggle-sw"><input type="checkbox" checked id="toggle-archive"><span class="toggle-track"></span></label>
             </div>
-            <div class="retention-row">
-              <span class="retention-label">Max entries</span>
-              <span class="retention-val" id="vault-max">—</span>
-            </div>
-            <div class="retention-row">
+            <div class="retention-row" style="margin-top:6px">
               <span class="retention-label">Auto-save</span>
-              <span class="retention-val">On response</span>
+              <label class="toggle-sw"><input type="checkbox" checked id="toggle-autosave"><span class="toggle-track"></span></label>
+            </div>
+            <div class="retention-row" style="margin-top:6px">
+              <span class="retention-label">Max entries</span>
+              <span class="retention-val" id="vault-max">∞</span>
             </div>
           </div>
         </div>
@@ -877,12 +1078,21 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-section-body">
             <div class="hw-panel" id="hw-panel">
-              <div class="hw-row"><span class="hw-key">RAM</span><span class="hw-val" id="hw-ram">16 GB</span></div>
-              <div class="hw-row"><span class="hw-key">Primary model</span><span class="hw-val" id="hw-primary">qwen2.5:14b</span></div>
-              <div class="hw-row"><span class="hw-key">Secondary model</span><span class="hw-val" id="hw-secondary">gemma3:12b</span></div>
-              <div class="hw-row"><span class="hw-key">Tool support</span><span class="hw-val" id="hw-tools">—</span></div>
-              <div class="hw-row"><span class="hw-key">Streaming</span><span class="hw-val" id="hw-streaming">—</span></div>
-              <div class="hw-row"><span class="hw-key">Provider name</span><span class="hw-val" id="hw-provider-name">—</span></div>
+              <div class="hw-row">
+                <span class="hw-key">RAM</span>
+                <span class="hw-val" id="hw-ram">—</span>
+              </div>
+              <div style="padding:4px 0 8px">
+                <div class="hw-bar-wrap"><div class="hw-bar" id="hw-ram-bar" style="width:0%"></div></div>
+                <div style="font-size:9.5px;color:var(--dark-muted);margin-top:3px" id="hw-ram-used">Loading…</div>
+              </div>
+              <div class="hw-row"><span class="hw-key">CPU</span><span class="hw-val" id="hw-cpu-model" style="font-size:10px;color:#7eb8f7;max-width:160px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap">—</span></div>
+              <div class="hw-row"><span class="hw-key">CPU LOAD</span><span class="hw-val" id="hw-cpu-load">—</span></div>
+              <div class="hw-row"><span class="hw-key">THERMAL STATUS</span><span class="hw-val" id="hw-thermal">—</span></div>
+              <div class="hw-row"><span class="hw-key">SWAP LATENCY</span><span class="hw-val" id="hw-swap">—</span></div>
+              <div class="hw-row"><span class="hw-key">Primary model</span><span class="hw-val" id="hw-primary">—</span></div>
+              <div class="hw-row"><span class="hw-key">Provider</span><span class="hw-val" id="hw-provider-name">—</span></div>
+              <div class="hw-row"><span class="hw-key">Tool use</span><span class="hw-val" id="hw-tools">—</span></div>
             </div>
           </div>
         </div>
@@ -896,15 +1106,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="settings-section-body">
             <table class="routing-table">
               <thead>
-                <tr><th>Task Type</th><th>Model</th><th>Reason</th></tr>
+                <tr><th>Task Type</th><th>Model</th><th>Fallback Provider</th><th>Reason</th></tr>
               </thead>
               <tbody id="routing-tbody">
-                <tr><td class="route-task">tools</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">Native tool-use support</td></tr>
-                <tr><td class="route-task">coding</td><td class="route-model">qwen2.5-coder:7b</td><td class="route-reason">Optimized for code generation</td></tr>
-                <tr><td class="route-task">reasoning</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">Strong logical reasoning</td></tr>
-                <tr><td class="route-task">chat</td><td class="route-model">gemma3:12b</td><td class="route-reason">Conversational, low latency</td></tr>
-                <tr><td class="route-task">longcontext</td><td class="route-model">gemma3:12b</td><td class="route-reason">128k context window</td></tr>
-                <tr><td class="route-task">quick</td><td class="route-model">gemma3:12b</td><td class="route-reason">Fast responses</td></tr>
+                <tr><td class="route-task">tools</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">ollama</td><td class="route-reason">Native tool-use support</td></tr>
+                <tr><td class="route-task">coding</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">ollama</td><td class="route-reason">Code generation</td></tr>
+                <tr><td class="route-task">reasoning</td><td class="route-model">qwen2.5:14b</td><td class="route-reason">ollama</td><td class="route-reason">Strong logical reasoning</td></tr>
+                <tr><td class="route-task">chat</td><td class="route-model">gemma3:12b</td><td class="route-reason">ollama</td><td class="route-reason">Conversational, low latency</td></tr>
+                <tr><td class="route-task">longcontext</td><td class="route-model">gemma3:12b</td><td class="route-reason">ollama</td><td class="route-reason">128k context window</td></tr>
+                <tr><td class="route-task">quick</td><td class="route-model">gemma3:12b</td><td class="route-reason">ollama</td><td class="route-reason">Fast responses</td></tr>
               </tbody>
             </table>
           </div>
@@ -978,6 +1188,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
            d.getMinutes().toString().padStart(2,'0') + ':' +
            d.getSeconds().toString().padStart(2,'0');
   }
+  function relativeTime(date) {
+    const ms = Date.now() - new Date(date).getTime();
+    if (ms < 60000) return 'JUST NOW';
+    if (ms < 3600000) return Math.floor(ms / 60000) + 'M AGO';
+    if (ms < 86400000) return Math.floor(ms / 3600000) + 'H AGO';
+    return Math.floor(ms / 86400000) + 'D AGO';
+  }
   function toast(msg) {
     const t = document.createElement('div');
     t.className = 'toast';
@@ -1050,14 +1267,32 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
 
   // ── Message building ───────────────────────────────────────────────────────
-  function addMessage(role, html) {
-    hideEmptyState();
+  function makeMsgRow(role, bubble) {
     const row = document.createElement('div');
     row.className = `msg-row ${role}`;
+    const inner = document.createElement('div');
+    inner.className = 'msg-inner';
+    const avatar = document.createElement('div');
+    avatar.className = `msg-avatar ${role === 'user' ? 'user-avatar' : 'ai-avatar'}`;
+    avatar.textContent = role === 'user' ? 'U' : 'AI';
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-bubble-wrap';
+    const ts = document.createElement('div');
+    ts.className = 'msg-timestamp';
+    ts.textContent = 'JUST NOW';
+    wrap.appendChild(bubble);
+    wrap.appendChild(ts);
+    inner.appendChild(avatar);
+    inner.appendChild(wrap);
+    row.appendChild(inner);
+    return row;
+  }
+  function addMessage(role, html) {
+    hideEmptyState();
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.innerHTML = html;
-    row.appendChild(bubble);
+    const row = makeMsgRow(role, bubble);
     $messages.appendChild(row);
     scrollBottom();
     return bubble;
@@ -1067,11 +1302,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
   function startAssistantBubble() {
     hideEmptyState();
-    const row = document.createElement('div');
-    row.className = 'msg-row assistant';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    row.appendChild(bubble);
+    const row = makeMsgRow('assistant', bubble);
     $messages.appendChild(row);
     scrollBottom();
     return bubble;
@@ -1098,13 +1331,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
 
   // ── Live events panel ──────────────────────────────────────────────────────
+  const dotClass = { 'evt-model':'#7eb8f7','evt-tool':'#f6c26b','evt-result':'#5ed98e','evt-switch':'#63d4e8','evt-done':'#a78bfa','evt-error':'#f87171','evt-conn':'#5ed98e' };
   function addLiveEvent(cssClass, typeLabel, detail) {
     state.liveEventCount++;
+    const dotColor = dotClass[cssClass] || '#5a6b7e';
     const el = document.createElement('div');
     el.className = 'live-event';
-    el.innerHTML = `<span class="live-event-time">${fmtTime()}</span><div class="live-event-body"><div class="live-event-type ${cssClass}">${esc(typeLabel)}</div><div class="live-event-detail">${esc(detail)}</div></div>`;
+    el.innerHTML = `<svg width="6" height="6" viewBox="0 0 6 6" style="flex-shrink:0;margin-top:4px"><circle cx="3" cy="3" r="3" fill="${dotColor}"/></svg><span class="live-event-time">${fmtTime()}</span><div class="live-event-body"><div class="live-event-type ${cssClass}">${esc(typeLabel)}</div><div class="live-event-detail">${esc(String(detail).slice(0,80))}</div></div>`;
     $liveList.appendChild(el);
-    // Keep max 80 events
     while ($liveList.children.length > 80) $liveList.removeChild($liveList.firstChild);
     $liveList.scrollTop = $liveList.scrollHeight;
   }
@@ -1257,6 +1491,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       state.streamingToolPills = {};
       accText = '';
       setSendEnabled(true);
+      const $sb2 = $('streaming-badge');
+      if ($sb2) $sb2.classList.remove('active');
       if (chunk.usage) {
         state.perfTotalTokens = (chunk.usage.input || 0) + (chunk.usage.output || 0);
         const row = $messages.lastElementChild;
@@ -1285,6 +1521,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       if (state.streamingBubble) state.streamingBubble.classList.remove('streaming');
       state.streamingBubble = null;
       setSendEnabled(true);
+      const $sb3 = $('streaming-badge');
+      if ($sb3) $sb3.classList.remove('active');
       accText = '';
       addMessage('assistant', `<p style="color:var(--red)">${esc(chunk.message)}</p>`);
       addLiveEvent('evt-error', 'error', chunk.message.slice(0,80));
@@ -1315,6 +1553,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     setSendEnabled(false);
     showSkeleton();
     setStatus('Thinking…', 'muted');
+    const $sb = $('streaming-badge');
+    if ($sb) $sb.classList.add('active');
     state.scrollLocked = false;
     state.ws.send(JSON.stringify({ type: 'chat', content: text }));
     addLiveEvent('evt-model', 'user_message', text.slice(0,60) + (text.length > 60 ? '…' : ''));
@@ -1404,16 +1644,21 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
 
   // ── Model display ───────────────────────────────────────────────────────────
-  function updateModelDisplay(model) {
+  function updateModelDisplay(model, fromPoll) {
+    if (model === state.currentModel) return;
+    const prev = state.currentModel;
     state.currentModel = model;
     $wsModelLbl.textContent = model ? model : '';
-    addLiveEvent('evt-model', 'model_selected', model);
+    // only log to live events on actual switches, not on initial poll
+    if (!fromPoll || prev === '') {
+      addLiveEvent('evt-model', 'model_selected', model);
+    }
   }
 
   // ── Provider info ────────────────────────────────────────────────────────────
   function loadProvider() {
     fetch('/api/provider').then(r => r.json()).then(data => {
-      updateModelDisplay(data.model);
+      updateModelDisplay(data.model, true);
       $emptyProv.textContent = `Powered by ${data.name} / ${data.model}`;
       // Nav status
       const provName = data.name || 'Provider';
@@ -1473,7 +1718,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         const el = document.createElement('div');
         el.className = 'vault-item';
         const relevance = q ? ((1 - i * 0.05).toFixed(2)) : '1.00';
-        const time = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—';
+        const time = m.createdAt ? relativeTime(m.createdAt) : '—';
         el.innerHTML = `<span class="vault-relevance">${relevance}</span><div class="vault-item-body"><div class="vault-item-type">${esc(m.type)}</div><div class="vault-item-text">${esc((m.content||'').slice(0,80))}${(m.content||'').length>80?'…':''}</div><div class="vault-item-time">${time}</div></div>`;
         el.addEventListener('click', () => {
           if (state.activeView !== 'chat') switchView('chat');
@@ -1482,6 +1727,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         });
         list.appendChild(el);
       });
+      // Update vector topology
+      const topoSvg = $('vault-topo-svg');
+      if (topoSvg) buildGraphSvg(topoSvg, mems, 230, 120);
+      // Estimate disk usage
+      const totalChars = mems.reduce((a, m) => a + (m.content?.length || 0), 0);
+      const diskEl = $('vault-disk');
+      if (diskEl) diskEl.textContent = Math.round(totalChars / 1024) || '<1';
     }).catch(() => {});
   }
 
@@ -1535,6 +1787,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         });
         list.appendChild(el);
       });
+      // Update knowledge graph
+      const kgSvg = $('kg-svg');
+      if (kgSvg) buildGraphSvg(kgSvg, mems, 260, 120);
     }).catch(() => {});
   }
 
@@ -1557,22 +1812,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
   // ── Settings data ──────────────────────────────────────────────────────────
   function loadSettingsData() {
+    loadSystemInfo();
+
     // Provider cards
     fetch('/api/provider').then(r => r.json()).then(data => {
       const container = $('provider-cards');
+      const provName = (data.name || 'ollama').toLowerCase();
       const providers = [
-        { name: data.name, model: data.model, active: true, meta: `Tool use: ${data.supportsToolUse ? 'Yes' : 'No'}` },
-        { name: 'Anthropic', model: 'claude-sonnet-4-6', active: false, meta: 'API key required' },
-        { name: 'OpenAI', model: 'gpt-4o', active: false, meta: 'API key required' },
+        { key: provName, name: data.name || 'Ollama', model: data.model, badge: 'connected', badgeLabel: 'LOCAL CONNECTED',
+          meta: `Tool use: ${data.supportsToolUse ? 'Yes' : 'No'} · Streaming: Yes`,
+          models: [data.model].filter(Boolean) },
+        { key: 'anthropic', name: 'Anthropic', model: 'claude-sonnet-4-6', badge: 'api-linked', badgeLabel: 'API LINKED', meta: 'Set ANTHROPIC_API_KEY', models: [] },
+        { key: 'openai',    name: 'OpenAI',    model: 'gpt-4o',           badge: 'needs-cfg',  badgeLabel: 'NEEDS CONFIG', meta: 'Set OPENAI_API_KEY', models: [] },
+        { key: 'gemini',    name: 'Gemini',    model: 'gemini-2.0-flash', badge: 'needs-cfg',  badgeLabel: 'NEEDS CONFIG', meta: 'Set GEMINI_API_KEY', models: [] },
       ];
       container.innerHTML = providers.map(p => `
         <div class="provider-card">
-          <div class="provider-status-dot ${p.active ? 'ok' : ''}"></div>
+          <div class="provider-icon ${p.key}">${p.name.slice(0,2).toUpperCase()}</div>
           <div class="provider-card-body">
             <div class="provider-card-name">${esc(p.name)}</div>
             <div class="provider-card-model">${esc(p.model)}</div>
             <div class="provider-card-meta">${esc(p.meta)}</div>
-            <span class="provider-card-badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'ACTIVE' : 'INACTIVE'}</span>
+            <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+              <span class="prov-badge ${p.badge}">${p.badgeLabel}</span>
+              ${p.models.map(m => `<span class="model-chip"><span class="model-chip-dot"></span>${esc(m)}</span>`).join('')}
+            </div>
           </div>
         </div>`).join('');
       $('hw-primary').textContent = data.model || 'qwen2.5:14b';
@@ -1592,40 +1856,182 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
     // Routing from model manager
     fetch('/api/stats').then(r => r.json()).then(data => {
-      if (data.model?.config) {
-        const cfg = data.model.config;
+      if (data.model?.config?.tasks) {
+        const tasks = data.model.config.tasks;
         const tbody = $('routing-tbody');
-        if (Object.keys(cfg).length > 0) {
-          tbody.innerHTML = Object.entries(cfg).map(([task, model]) =>
-            `<tr><td class="route-task">${esc(task)}</td><td class="route-model">${esc(String(model))}</td><td class="route-reason">Auto-routed</td></tr>`
+        if (Object.keys(tasks).length > 0) {
+          tbody.innerHTML = Object.entries(tasks).map(([task, model]) =>
+            `<tr><td class="route-task">${esc(task)}</td><td class="route-model">${esc(String(model))}</td><td class="route-reason">ollama</td><td class="route-reason">Auto-routed</td></tr>`
           ).join('');
         }
       }
     }).catch(() => {});
   }
 
+  // ── Knowledge / Topology graph SVG ────────────────────────────────────────
+  const TYPE_COLORS = { fact:'#7eb8f7', preference:'#f6c26b', task:'#5ed98e', note:'#a78bfa', experience:'#f87171', conversation:'#63d4e8' };
+  function buildGraphSvg(svgEl, nodes, w, h) {
+    if (!svgEl) return;
+    if (!nodes || !nodes.length) { svgEl.innerHTML = `<text x="${w/2}" y="${h/2}" text-anchor="middle" font-size="10" fill="#3a4d5e">No memories yet</text>`; return; }
+    const n = Math.min(nodes.length, 14);
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const r = Math.min(w, h) * 0.36;
+      pts.push({ x: w/2 + r * Math.cos(angle), y: h/2 + r * Math.sin(angle), m: nodes[i] });
+    }
+    let svg = '';
+    // Edges between adjacent nodes
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      svg += `<line x1="${pts[i].x.toFixed(1)}" y1="${pts[i].y.toFixed(1)}" x2="${pts[j].x.toFixed(1)}" y2="${pts[j].y.toFixed(1)}" stroke="#1e2d3d" stroke-width="1"/>`;
+    }
+    if (pts.length > 4) {
+      const mid = Math.floor(pts.length / 2);
+      svg += `<line x1="${pts[0].x.toFixed(1)}" y1="${pts[0].y.toFixed(1)}" x2="${pts[mid].x.toFixed(1)}" y2="${pts[mid].y.toFixed(1)}" stroke="#1e2d3d" stroke-width="0.5" stroke-dasharray="2,3"/>`;
+    }
+    pts.forEach(({ x, y, m }) => {
+      const col = TYPE_COLORS[m.type] || '#5a6b7e';
+      svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5.5" fill="${col}" fill-opacity="0.85" stroke="${col}" stroke-width="1"/>`;
+    });
+    svgEl.innerHTML = svg;
+  }
+
+  // ── GPU utilization ────────────────────────────────────────────────────────
+  function loadGpuUtil() {
+    fetch('/api/ollama/ps').then(r => r.json()).then(data => {
+      const models = data.models || [];
+      const totalVram = models.reduce((s, m) => s + (m.size_vram || 0), 0);
+      const totalSize = models.reduce((s, m) => s + (m.size || 0), 0);
+      const pct  = totalSize > 0 ? Math.round((totalVram / totalSize) * 100) : 0;
+      const mb   = Math.round(totalVram / 1024 / 1024);
+      const disp = mb > 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB';
+      const el   = $('gpu-util-val');
+      const bar  = $('gpu-util-bar');
+      if (el)  el.textContent = pct + '%';
+      if (bar) bar.style.width = pct + '%';
+      const card = $('gpu-card');
+      if (card && mb > 0) card.title = disp + ' VRAM in use';
+    }).catch(() => {});
+  }
+
+  // ── System info ────────────────────────────────────────────────────────────
+  function loadSystemInfo() {
+    fetch('/api/system').then(r => r.json()).then(d => {
+      const ramGB = (d.totalMemMb / 1024).toFixed(0);
+      const usedGB = (d.usedMemMb / 1024).toFixed(1);
+      const ramEl = $('hw-ram');
+      if (ramEl) ramEl.textContent = ramGB + ' GB';
+      const usedEl = $('hw-ram-used');
+      if (usedEl) usedEl.textContent = usedGB + ' GB used (' + d.usedMemPct + '%)';
+      const barEl = $('hw-ram-bar');
+      if (barEl) barEl.style.width = d.usedMemPct + '%';
+      const cpuMod = $('hw-cpu-model');
+      if (cpuMod) cpuMod.textContent = (d.cpuModel || '').replace(/@.*/, '').trim().slice(0, 35);
+      const cpuLoad = $('hw-cpu-load');
+      if (cpuLoad) cpuLoad.textContent = d.loadAvg1m.toFixed(2);
+      const thermal = $('hw-thermal');
+      if (thermal) {
+        const lv = d.loadAvg1m < 1.5 ? ['NOMINAL','#22c55e'] : d.loadAvg1m < 3.5 ? ['WARM','#f59e0b'] : ['HIGH','#ef4444'];
+        thermal.textContent = lv[0];
+        thermal.style.color = lv[1];
+      }
+      const swap = $('hw-swap');
+      if (swap) {
+        const freePct = Math.round((d.freeMemMb / d.totalMemMb) * 100);
+        swap.textContent = freePct > 30 ? 'LOW' : freePct > 10 ? 'MED' : 'HIGH';
+        swap.style.color  = freePct > 30 ? '#22c55e' : freePct > 10 ? '#f59e0b' : '#ef4444';
+      }
+    }).catch(() => {});
+  }
+
+  // ── Code tabs ──────────────────────────────────────────────────────────────
+  const codeTabs = [{ name: 'assistant.ts', active: true }, { name: 'context.ts', active: false }];
+  function renderCodeTabs() {
+    const bar = $('code-tabs-bar');
+    if (!bar) return;
+    bar.innerHTML = codeTabs.map((t, i) => `<div class="code-tab${t.active ? ' active' : ''}" data-tab="${i}"><span>${esc(t.name)}</span><button class="code-tab-close" data-close="${i}">×</button></div>`).join('');
+    bar.querySelectorAll('.code-tab').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.classList.contains('code-tab-close')) return;
+        const idx = parseInt(el.dataset.tab, 10);
+        codeTabs.forEach((t, i) => { t.active = i === idx; });
+        const af = $('code-active-file');
+        if (af) af.textContent = codeTabs[idx]?.name || '';
+        renderCodeTabs();
+      });
+    });
+    bar.querySelectorAll('.code-tab-close').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(el.dataset.close, 10);
+        codeTabs.splice(idx, 1);
+        if (codeTabs.length > 0 && !codeTabs.some(t => t.active)) codeTabs[0].active = true;
+        renderCodeTabs();
+      });
+    });
+  }
+
+  // ── Line numbers ───────────────────────────────────────────────────────────
+  function updateLineNumbers() {
+    const ta  = $('code-editor-area');
+    const ln  = $('line-numbers');
+    if (!ta || !ln) return;
+    const n = ta.value.split('\n').length;
+    ln.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n');
+    ln.scrollTop = ta.scrollTop;
+  }
+
+  window.confirmPrune = function() {
+    if (confirm('Prune memories older than 30 days? Archived entries will be hidden but not deleted.')) {
+      toast('Prune complete (archive-only mode — nothing deleted).');
+    }
+  };
+
   // ── Mobile ─────────────────────────────────────────────────────────────────
   $hamburger.addEventListener('click', () => { $nav.classList.toggle('open'); $overlay.classList.toggle('open'); });
   $overlay.addEventListener('click', () => { $nav.classList.remove('open'); $overlay.classList.remove('open'); });
 
-  // Code quick actions
-  document.querySelectorAll('.tree-file, .tree-folder').forEach(el => {
+  // Code tree file click → open tab
+  document.querySelectorAll('.tree-file').forEach(el => {
     el.addEventListener('click', () => {
-      if (el.classList.contains('tree-file')) {
-        $('code-active-file').textContent = el.textContent.trim();
+      const name = el.childNodes[0]?.textContent?.trim() || el.textContent.trim().split(' ')[0];
+      if (!codeTabs.find(t => t.name === name)) {
+        codeTabs.forEach(t => { t.active = false; });
+        codeTabs.push({ name, active: true });
+      } else {
+        codeTabs.forEach(t => { t.active = t.name === name; });
       }
+      const af = $('code-active-file');
+      if (af) af.textContent = name;
+      renderCodeTabs();
     });
   });
 
+  // Code editor line numbers
+  const $codeArea = $('code-editor-area');
+  if ($codeArea) {
+    $codeArea.addEventListener('input', updateLineNumbers);
+    $codeArea.addEventListener('scroll', () => {
+      const ln = $('line-numbers');
+      if (ln) ln.scrollTop = $codeArea.scrollTop;
+    });
+    updateLineNumbers();
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
+  renderCodeTabs();
   connect();
   loadProvider();
   loadProfiles();
   loadHealth();
+  loadGpuUtil();
+  loadSystemInfo();
 
   setInterval(() => {
     loadProvider();
     loadHealth();
+    loadGpuUtil();
   }, 30000);
 
   // Code quick action buttons

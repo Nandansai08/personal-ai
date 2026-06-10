@@ -1,5 +1,7 @@
 // MIT License — personal-ai
 import http from 'node:http'
+import net from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -31,9 +33,19 @@ export interface WebServerOptions {
   port?:          number
 }
 
-export function createWebServer(opts: WebServerOptions): http.Server {
+function findFreePort(start: number): Promise<number> {
+  return new Promise(resolve => {
+    const srv = net.createServer()
+    srv.unref()
+    srv.on('error', () => resolve(findFreePort(start + 1)))
+    srv.listen(start, () => { srv.close(() => resolve(start)) })
+  })
+}
+
+export async function createWebServer(opts: WebServerOptions): Promise<{ server: http.Server; port: number }> {
   const { provider, memory, profileManager, registry, modelManager, personaPath } = opts
-  const PORT = opts.port ?? parseInt(process.env['PORT'] ?? '3000', 10)
+  const preferred = opts.port ?? parseInt(process.env['PORT'] ?? '3000', 10)
+  const PORT = await findFreePort(preferred)
 
   const app = express()
   app.use(cors({ origin: [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`] }))
@@ -142,6 +154,33 @@ export function createWebServer(opts: WebServerOptions): http.Server {
     })
   })
 
+  app.get('/api/system', (_req, res) => {
+    const totalMem  = os.totalmem()
+    const freeMem   = os.freemem()
+    const usedMem   = totalMem - freeMem
+    const cpus      = os.cpus()
+    const loadAvg1m = os.loadavg()[0] ?? 0
+    res.json({
+      totalMemMb:  Math.round(totalMem / 1024 / 1024),
+      freeMemMb:   Math.round(freeMem  / 1024 / 1024),
+      usedMemMb:   Math.round(usedMem  / 1024 / 1024),
+      usedMemPct:  Math.round((usedMem / totalMem) * 100),
+      cpuModel:    cpus[0]?.model ?? 'Unknown',
+      cpuCount:    cpus.length,
+      loadAvg1m:   Math.round(loadAvg1m * 100) / 100,
+      platform:    os.platform(),
+      arch:        os.arch(),
+    })
+  })
+
+  app.get('/api/ollama/ps', (_req, res) => {
+    const ollamaUrl = process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434'
+    void fetch(`${ollamaUrl}/api/ps`)
+      .then(r => r.json())
+      .then(data => res.json(data))
+      .catch(() => res.json({ models: [] }))
+  })
+
   // ── WebSocket chat ──────────────────────────────────────────────────
   const server = http.createServer(app)
   const wss = new WebSocketServer({ server, path: '/api/chat' })
@@ -226,11 +265,10 @@ export function createWebServer(opts: WebServerOptions): http.Server {
     ws.on('error', (err) => { logger.error('web', 'WS error', err) })
   })
 
-  server.listen(PORT, () => {
-    logger.debug('web', `listening on :${PORT}`)
-  })
+  await new Promise<void>(resolve => server.listen(PORT, resolve))
+  logger.debug('web', `listening on :${PORT}`)
 
-  return server
+  return { server, port: PORT }
 }
 
 export function getServerUrl(port = 3000): string {
