@@ -16,6 +16,7 @@ export class ConversationContext {
     this.messages.push({ role: 'assistant', content })
   }
 
+  /** Used in M4 when tool results are wired in. */
   addTool(name: string, toolCallId: string, result: string): void {
     this.messages.push({ role: 'tool', content: result, tool_call_id: toolCallId, name })
     this.toolCallCount++

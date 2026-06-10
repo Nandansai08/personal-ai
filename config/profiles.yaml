@@ -1,25 +1,61 @@
-# Agent profiles
+active: assistant
+
 profiles:
   assistant:
-    name: assistant
-    system_prompt_addon: ""
-    preferred_model: qwen2.5:14b
-    tools_priority: []
+    name: "Assistant"
+    description: "General purpose daily assistant"
+    system_addon: ""
+    preferred_model: "qwen2.5:14b"
+    tools_priority:
+      - tasks
+      - notes
+      - web_search
+      - calculator
+    temperature: 0.7
 
   coder:
-    name: coder
-    system_prompt_addon: "You are an expert software engineer. Write clean, idiomatic code."
-    preferred_model: qwen2.5-coder:7b
-    tools_priority: [code_exec, file_read, file_write]
+    name: "Coder"
+    description: "Software development specialist"
+    system_addon: |
+      You are in coding mode.
+      Always write complete, runnable code.
+      Include error handling and types.
+      Explain key decisions briefly.
+      Default language: TypeScript unless specified.
+    preferred_model: "qwen2.5-coder:7b"
+    tools_priority:
+      - file_reader
+      - web_search
+      - calculator
+    temperature: 0.3
 
   researcher:
-    name: researcher
-    system_prompt_addon: "You are a thorough researcher. Cite sources. Think step by step."
-    preferred_model: gemma3:12b
-    tools_priority: [web_search, summarize]
+    name: "Researcher"
+    description: "Deep research and analysis"
+    system_addon: |
+      You are in research mode.
+      Search multiple angles before concluding.
+      Cite sources when available.
+      Structure findings clearly with headers.
+      Acknowledge uncertainty explicitly.
+    preferred_model: "gemma3:12b"
+    tools_priority:
+      - web_search
+      - file_reader
+      - notes
+    temperature: 0.5
 
   tutor:
-    name: tutor
-    system_prompt_addon: "You are a patient tutor. Explain step by step. Check understanding."
-    preferred_model: gemma3:12b
-    tools_priority: []
+    name: "Tutor"
+    description: "Teaching and explanation mode"
+    system_addon: |
+      You are in tutor mode.
+      Explain step by step.
+      Use analogies and examples.
+      Check understanding after complex points.
+      Never give the full answer immediately — guide toward it.
+    preferred_model: "gemma3:12b"
+    tools_priority:
+      - calculator
+      - web_search
+    temperature: 0.8

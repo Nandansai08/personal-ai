@@ -1,0 +1,11 @@
+{
+  "deadCode": {
+    "alwaysUsed": [
+      "src/mcp/**",
+      "src/plugins/**",
+      "src/tools/**",
+      "src/voice/**",
+      "src/ui/web/**"
+    ]
+  }
+}

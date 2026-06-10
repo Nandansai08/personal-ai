@@ -2,6 +2,7 @@
 import type { LLMProvider, ChatChunk, ToolDefinition } from '../providers/interface.js'
 import type { ConversationContext } from './context.js'
 import type { LongTermMemory } from '../memory/long-term.js'
+import type { ProfileManager } from '../persona/profiles.js'
 import { extractMemoryCandidates } from '../memory/short-term.js'
 import { logger } from './logger.js'
 
@@ -16,10 +17,11 @@ export class AssistantEngine {
     private getSystemPrompt: () => string,
     private context: ConversationContext,
     private memory?: LongTermMemory,
+    private profileManager?: ProfileManager,
   ) {}
 
   async *chat(userMessage: string, options?: AssistantOptions): AsyncGenerator<ChatChunk> {
-    // Retrieve relevant memories before answering
+    // Retrieve relevant memories
     let memoryContext = ''
     if (this.memory) {
       const memories = this.memory.search(userMessage, 8)
@@ -32,13 +34,14 @@ export class AssistantEngine {
 
     this.context.addUser(userMessage)
 
-    const systemPrompt = this.getSystemPrompt() + memoryContext
+    const temperature = options?.temperature
+      ?? this.profileManager?.getTemperature()
 
     const request = {
-      messages: [...this.context.getMessages()],
-      systemPrompt,
-      tools: options?.tools,
-      temperature: options?.temperature,
+      messages:     [...this.context.getMessages()],
+      systemPrompt: this.getSystemPrompt() + memoryContext,
+      tools:        options?.tools,
+      temperature,
     }
 
     let assistantText = ''
@@ -50,7 +53,6 @@ export class AssistantEngine {
     if (assistantText) {
       this.context.addAssistant(assistantText)
 
-      // Extract and save memory candidates from user message
       if (this.memory) {
         const candidates = extractMemoryCandidates(userMessage)
         for (const c of candidates) {
@@ -62,4 +64,5 @@ export class AssistantEngine {
       }
     }
   }
+
 }

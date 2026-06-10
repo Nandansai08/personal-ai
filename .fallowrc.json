@@ -1,0 +1,23 @@
+{
+  "ignorePatterns": [
+    "src/mcp/**",
+    "src/plugins/**",
+    "src/tools/**",
+    "src/voice/**",
+    "src/ui/web/**"
+  ],
+  "ignoreExports": [
+    { "file": "src/core/events.ts",       "exports": ["EventMap"] },
+    { "file": "src/persona/types.ts",     "exports": ["ProfileConfigSchema"] },
+    { "file": "src/providers/factory.ts", "exports": ["validateProviderConfig"] }
+  ],
+  "usedClassMembers": ["addTool", "supportsStreaming"],
+  "health": {
+    "ignore": [
+      "src/ui/cli.ts",
+      "src/providers/ollama.ts",
+      "src/core/assistant.ts",
+      "src/persona/system-prompt.ts"
+    ]
+  }
+}

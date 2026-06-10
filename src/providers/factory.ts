@@ -12,7 +12,7 @@ export async function createProvider(model?: string): Promise<LLMProvider> {
   }
 }
 
-/** Check whether required env vars are present for a provider. */
+/** Check whether required env vars are present for a provider. Used by setup wizard (M7). */
 export function validateProviderConfig(provider: string): { valid: boolean; missing: string[] } {
   const required: Record<string, string[]> = {
     ollama:    [],
