@@ -128,7 +128,7 @@ export class LongTermMemory {
   getRecent(limit = 10): Memory[] {
     const rows = this.db.prepare(`
       SELECT * FROM memories WHERE archived = 0
-      ORDER BY created_at DESC LIMIT ?
+      ORDER BY created_at DESC, ROWID DESC LIMIT ?
     `).all(limit) as MemoryRow[]
     logger.debug('memory', `getRecent → ${rows.length}`)
     return rows.map(rowToMemory)
