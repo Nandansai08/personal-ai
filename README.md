@@ -50,13 +50,13 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 **Fastest** (once published to npm):
 
 ```bash
-npx @nandansai/personal-ai
+npx @nandansai08/personal-ai
 ```
 
 Or install globally:
 
 ```bash
-npm i -g @nandansai/personal-ai
+npm i -g @nandansai08/personal-ai
 personal-ai
 ```
 
