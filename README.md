@@ -253,6 +253,34 @@ Switch profile mid-session — takes effect on the next message.
 
 ---
 
+## Plugins
+
+Add a tool in 30 seconds — drop a folder into `plugins/` (or `~/.personal-ai/plugins/`), no build step:
+
+```
+plugins/my-plugin/
+├── plugin.json    {"name":"my-plugin","version":"1.0.0","description":"…","main":"./index.js","enabled":true}
+└── index.js
+```
+
+```js
+export default {
+  name: 'my-plugin', version: '1.0.0', description: 'My first tool',
+  tools: [{
+    definition: { name: 'my_tool', description: 'Says hi', parameters: { type: 'object', properties: {} } },
+    async execute() { return { success: true, data: 'hi!' } },
+  }],
+}
+```
+
+Restart (or `/plugins reload`) — the tool appears in `/tools` and the model can call it.
+Plugins also support hooks (`beforePrompt`, `afterResponse`, tool/memory/session events),
+run sandboxed with timeouts, and never crash the assistant. Full guide: [docs/PLUGINS.md](docs/PLUGINS.md).
+
+> Plugins are **trusted code** running with full process privileges — install only plugins you've read or trust. External integrations belong in MCP (v1.0 roadmap), not plugins. See [SECURITY.md](SECURITY.md).
+
+---
+
 ## Architecture
 
 ```

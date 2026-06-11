@@ -72,6 +72,12 @@ describe('web server auth', () => {
     expect(res.status).toBe(200)
   })
 
+  it('serves /api/plugins (empty array when no manager wired)', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/plugins?token=${token}`)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
   it('serves static client without token', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/`)
     expect(res.status).toBe(200)

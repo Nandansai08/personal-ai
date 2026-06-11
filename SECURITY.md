@@ -36,6 +36,20 @@ machine owner is the only user.
   prompt-injection risk — but no mitigation is complete. Review what the
   assistant saves with `/memory list`.
 
+### Plugins
+
+- **Plugins are trusted code.** They run in-process with full Node.js
+  privileges — the plugin sandbox is an *error* boundary (timeouts, crash
+  isolation), **not** a *security* boundary. A malicious plugin can read any
+  file, including `.env`, regardless of the `file_reader` restrictions.
+- Only install plugins you have read or whose author you trust — the same
+  trust model as editor extensions or npm dependencies.
+- Plugins load from `plugins/` (package) and `~/.personal-ai/plugins/`
+  (user). Anything that can write to those directories can persist code into
+  the assistant. Keep them owned by your user account.
+- Review what's loaded with `/plugins health`; disable with
+  `/plugins disable <name>` (persists).
+
 ### Secrets
 
 - API keys live in `.env` (gitignored) and are sent only in request headers,
