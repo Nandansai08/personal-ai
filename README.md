@@ -50,7 +50,14 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 **Fastest** (once published to npm):
 
 ```bash
-npx personal-ai
+npx @nandansai/personal-ai
+```
+
+Or install globally:
+
+```bash
+npm i -g @nandansai/personal-ai
+personal-ai
 ```
 
 The first-run wizard walks you through provider + persona setup; config is

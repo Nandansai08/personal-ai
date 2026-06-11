@@ -1,5 +1,5 @@
 {
-  "name": "personal-ai",
+  "name": "@nandansai/personal-ai",
   "version": "0.8.0",
   "description": "Personal AI assistant — any model, local or cloud",
   "type": "module",
