@@ -2,6 +2,7 @@
 import { GoogleGenerativeAI, type FunctionDeclaration } from '@google/generative-ai'
 import { eventBus } from '../core/events.js'
 import { logger } from '../core/logger.js'
+import { runHealthCheck } from './utils.js'
 import type {
   LLMProvider, ChatRequest, ChatChunk, ProviderHealth, ModelInfo, ToolDefinition,
 } from './interface.js'
@@ -88,14 +89,9 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async healthCheck(): Promise<ProviderHealth> {
-    const start = Date.now()
-    try {
-      const m = this.client.getGenerativeModel({ model: this.model })
-      await m.countTokens('ping')
-      return { ok: true, latencyMs: Date.now() - start, model: this.model }
-    } catch (err) {
-      return { ok: false, latencyMs: Date.now() - start, model: this.model, error: String(err) }
-    }
+    return runHealthCheck(this.model, async () => {
+      await this.client.getGenerativeModel({ model: this.model }).countTokens('ping')
+    })
   }
 
   async listModels(): Promise<ModelInfo[]> {

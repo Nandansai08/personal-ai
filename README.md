@@ -1,6 +1,13 @@
 # PersonalAI
 
+[![CI](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
+
 **Local-first AI assistant. Any provider. Runs on your machine.**
+
+<!-- demo.gif: record with `npm start` → ask a question → /model switch → web UI. Keep under 15s. -->
+![Demo](docs/demo.gif)
 
 No cloud lock-in. Switch between Ollama, Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, or Together with one env var. Auto-routes tasks to the right model — qwen2.5:14b for tools/reasoning, gemma3:12b for chat/long context.
 
@@ -39,6 +46,17 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 ---
 
 ## Quick Start
+
+**Fastest** (once published to npm):
+
+```bash
+npx personal-ai
+```
+
+The first-run wizard walks you through provider + persona setup; config is
+stored in `~/.personal-ai/`.
+
+**From source:**
 
 **1. Clone and install**
 
@@ -365,7 +383,7 @@ npm run web
 **Performance optimizations:**
 - `keep_alive: -1` keeps Ollama models in VRAM between requests
 - Both models warm-up on server start — first message latency ~2–5 s instead of 30–50 s
-- `OLLAMA_NUM_CTX=2048` default — raise to 4096+ for long conversations
+- `OLLAMA_NUM_CTX=8192` default — lower to 4096/2048 on RAM-tight machines
 
 Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launch.json` for dev.
 
@@ -378,16 +396,26 @@ Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launc
 | v0.5 | Done | 8 providers, ModelManager auto-routing, 4 agent profiles |
 | v0.6 | Done | Web UI — Express + WebSocket streaming chat in browser |
 | v0.7 | Done | Setup wizard, `/cost` tracking, model-pin for all providers, friendly errors, session save |
-| v0.8 | Planned | Plugin system — weather, GitHub, calendar plugins |
+| v0.8 | Done | Security hardening, semantic memory (local embeddings via Ollama), session save/load, npm packaging |
 | v0.9 | Planned | MCP support — connect any MCP server over stdio |
-| v1.1 | Planned | Semantic memory with sqlite-vec embeddings |
-| v1.2 | Planned | Voice — STT + TTS + wake word |
+| v1.0 | Planned | Plugin system — weather, GitHub, calendar plugins |
+| v1.1 | Planned | Voice — STT + TTS + wake word |
+
+---
+
+## Security
+
+PersonalAI is local-first by design: the web UI binds to `127.0.0.1` only,
+WebSocket connections are origin-checked, and the file-reader tool is
+restricted to allowed roots with credential files always denied.
+See [SECURITY.md](SECURITY.md) for the full security model and reporting policy.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

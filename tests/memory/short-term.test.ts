@@ -28,7 +28,7 @@ describe('extractMemoryCandidates', () => {
   it('extracts name fact', () => {
     const c = extractMemoryCandidates('My name is Nandan.')
     expect(c.length).toBeGreaterThan(0)
-    expect(c[0]!.type).toBe('fact')
+    expect(c[0]!.type).toBe('personal')
     expect(c[0]!.importance).toBeGreaterThanOrEqual(9)
   })
 

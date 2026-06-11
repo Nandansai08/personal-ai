@@ -3,20 +3,12 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createProvider } from './providers/factory.js'
-import { LongTermMemory } from './memory/long-term.js'
-import { loadPersona, loadProfiles, watchPersona, watchProfiles } from './persona/loader.js'
-import { ProfileManager } from './persona/profiles.js'
-import { ModelManager, defaultModelsConfig } from './core/model-manager.js'
+import { watchProfiles } from './persona/loader.js'
+import { ModelManager } from './core/model-manager.js'
 import { createWebServer, getServerUrl } from './ui/web/server.js'
 import { logger } from './core/logger.js'
 import { toolRegistry } from './tools/registry.js'
-import { webSearchTool } from './tools/web-search.js'
-import { notesTool } from './tools/notes.js'
-import { tasksTool } from './tools/tasks.js'
-import { calculatorTool } from './tools/calculator.js'
-import { fileReaderTool } from './tools/file-reader.js'
-import { createMemoryTool } from './tools/memory-tool.js'
+import { createAppCore } from './bootstrap.js'
 
 void logger
 
@@ -24,28 +16,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CONFIG    = path.join(__dirname, '..', 'config')
 
 async function main(): Promise<void> {
-  const persona        = loadPersona(path.join(CONFIG, 'persona.yaml'))
-  const profilesCfg    = loadProfiles(path.join(CONFIG, 'profiles.yaml'))
-  const profileManager = new ProfileManager(profilesCfg)
-
-  let provider
-  try {
-    provider = await createProvider()
-  } catch (err) {
-    console.error('Failed to initialize provider:', err)
+  const boot = await createAppCore(CONFIG)
+  if (!boot.ok) {
+    console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
+  const { provider, profileManager, memory } = boot.core
 
-  const memory = new LongTermMemory()
-
-  toolRegistry.register(webSearchTool)
-  toolRegistry.register(notesTool)
-  toolRegistry.register(tasksTool)
-  toolRegistry.register(calculatorTool)
-  toolRegistry.register(fileReaderTool)
-  toolRegistry.register(createMemoryTool(memory))
-
-  watchPersona(path.join(CONFIG, 'persona.yaml'), () => {})
   watchProfiles(path.join(CONFIG, 'profiles.yaml'), p => profileManager.reload(p))
 
   // Web UI: two-model routing — qwen2.5:14b for tools/logic, gemma3:12b for chat/research/tutor
@@ -66,15 +43,12 @@ async function main(): Promise<void> {
     : new ModelManager({ default: provider.model, tasks: {} }, profileManager)
 
   // Pre-load both models so first request is fast
-  if ('warmUp' in provider && typeof (provider as Record<string, unknown>)['warmUp'] === 'function') {
-    const warm = provider as unknown as { warmUp(m: string): Promise<void> }
-    void warm.warmUp(defaultModel)
-    if (provider.name === 'ollama' && chatModel !== defaultModel) void warm.warmUp(chatModel)
-  }
+  void provider.warmUp?.(defaultModel)
+  if (provider.name === 'ollama' && chatModel !== defaultModel) void provider.warmUp?.(chatModel)
 
   const preferred = parseInt(process.env['PORT'] ?? '3000', 10)
 
-  const { port } = await createWebServer({
+  const { port, token } = await createWebServer({
     provider,
     memory,
     profileManager,
@@ -84,9 +58,10 @@ async function main(): Promise<void> {
     port: preferred,
   })
 
-  const url = getServerUrl(port)
+  const url = getServerUrl(port, token)
   console.log(`\n  PersonalAI Web UI`)
-  console.log(`  ${url}\n`)
+  console.log(`  ${url}`)
+  console.log(`  (URL includes your session token — don't share it)\n`)
 
   process.on('SIGINT', () => {
     memory.close()

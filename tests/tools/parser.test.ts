@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { parseToolCalls } from '../../src/tools/parser.js'
 
+function assertWebSearch(input: string, query: string): void {
+  const calls = parseToolCalls(input)
+  expect(calls).toHaveLength(1)
+  expect(calls[0]!.name).toBe('web_search')
+  expect((calls[0]!.arguments as Record<string, unknown>)['query']).toBe(query)
+}
+
 describe('parseToolCalls — strategy 1: native JSON array', () => {
   it('parses array with name+arguments', () => {
-    const input = JSON.stringify([{ name: 'web_search', arguments: { query: 'hello' } }])
-    const calls = parseToolCalls(input)
-    expect(calls).toHaveLength(1)
-    expect(calls[0]!.name).toBe('web_search')
-    expect((calls[0]!.arguments as Record<string, unknown>)['query']).toBe('hello')
+    assertWebSearch(JSON.stringify([{ name: 'web_search', arguments: { query: 'hello' } }]), 'hello')
   })
 
   it('parses array with name+parameters variant', () => {
@@ -28,11 +31,7 @@ describe('parseToolCalls — strategy 1: native JSON array', () => {
 
 describe('parseToolCalls — strategy 2: Gemma3 XML', () => {
   it('parses two-tag XML', () => {
-    const input = '<tool>web_search</tool><args>{"query": "TypeScript tips"}</args>'
-    const calls = parseToolCalls(input)
-    expect(calls).toHaveLength(1)
-    expect(calls[0]!.name).toBe('web_search')
-    expect((calls[0]!.arguments as Record<string, unknown>)['query']).toBe('TypeScript tips')
+    assertWebSearch('<tool>web_search</tool><args>{"query": "TypeScript tips"}</args>', 'TypeScript tips')
   })
 
   it('handles malformed args gracefully', () => {

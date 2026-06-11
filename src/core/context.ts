@@ -35,6 +35,11 @@ export class ConversationContext {
     this.toolCallCount = 0
   }
 
+  /** Replace history with a previously saved session. */
+  restore(messages: Message[]): void {
+    this.messages = [...messages]
+  }
+
   get messageCount(): number {
     return this.messages.length
   }

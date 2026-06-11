@@ -228,6 +228,8 @@ Tool use: not supported in this integration. Streaming: native.
 
 ## Switching Providers
 
+In the CLI, run `/switch` to list supported providers or `/switch <provider>` to print the required `.env` settings.
+
 ```bash
 # In .env:
 PROVIDER=groq

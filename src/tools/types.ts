@@ -29,5 +29,10 @@ export interface ToolResult {
 
 export interface RegisteredTool {
   definition: ToolDefinition
+  /** Dangerous tools (file access, etc.) require user confirmation before each call. */
+  requiresConfirmation?: boolean
   execute(args: unknown): Promise<ToolResult>
 }
+
+/** Asks the user to approve a dangerous tool call. Return false to deny. */
+export type ConfirmHandler = (name: string, args: unknown) => Promise<boolean>

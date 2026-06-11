@@ -15,11 +15,10 @@ export type EventMap = {
   'session_ended':    { messageCount: number; toolCallCount: number }
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
-type Handlers = Map<string, Function[]>
+type AnyHandler = (data: unknown) => void
+type Handlers = Map<string, AnyHandler[]>
 
 class EventBus {
-  // eslint-disable-next-line @typescript-eslint/ban-types
   private handlers: Handlers = new Map()
 
   /**
@@ -27,12 +26,12 @@ class EventBus {
    */
   on<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): () => void {
     if (!this.handlers.has(event)) this.handlers.set(event, [])
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    this.handlers.get(event)!.push(handler)
+    const erased = handler as AnyHandler  // type erased for storage; emit() restores K
+    this.handlers.get(event)!.push(erased)
     return () => {
       const list = this.handlers.get(event)
       if (list) {
-        const idx = list.indexOf(handler)
+        const idx = list.indexOf(erased)
         if (idx !== -1) list.splice(idx, 1)
       }
     }
@@ -45,7 +44,7 @@ class EventBus {
     const list = this.handlers.get(event) ?? []
     for (const h of list) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+         
         (h as (d: EventMap[K]) => void)(data)
       } catch (err) {
         console.error(`[EventBus] handler error on "${event}":`, err)

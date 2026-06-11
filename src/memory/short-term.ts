@@ -1,5 +1,6 @@
 // MIT License — personal-ai
 import type { MemoryType } from './types.js'
+import { normalizeFact, categorizeFact } from './intent.js'
 
 export interface MemoryCandidate {
   content: string
@@ -62,7 +63,10 @@ export function extractMemoryCandidates(text: string): MemoryCandidate[] {
   for (const sentence of sentences) {
     for (const { pattern, type, importance } of TRIGGERS) {
       if (pattern.test(sentence)) {
-        candidates.push({ content: sentence, type, importance })
+        // Store normalized third-person facts, not raw first-person sentences
+        const content = normalizeFact(sentence)
+        const refined = categorizeFact(content)
+        candidates.push({ content, type: refined === 'fact' ? type : refined, importance })
         break // one trigger per sentence
       }
     }

@@ -96,11 +96,14 @@ Each profile has: name, system_prompt_addon, preferred_model, tools_priority[]
 Switch with: /profile coder or /coder /research /tutor in CLI
 
 ## Web Search
-Use Brave Search API (not DuckDuckGo).
-Env: BRAVE_SEARCH_API_KEY
-Endpoint: GET https://api.search.brave.com/res/v1/web/search
-Fallback: DuckDuckGo if no BRAVE_SEARCH_API_KEY set.
-Brave free tier: 2000 queries/month.
+Use Serper as the primary search API.
+Env: SERPER_API_KEY
+Endpoint: POST https://google.serper.dev/search
+Fallback: Brave Search if no SERPER_API_KEY is set or Serper fails.
+Brave env: BRAVE_SEARCH_API_KEY
+Brave endpoint: GET https://api.search.brave.com/res/v1/web/search
+Last resort: DuckDuckGo Instant Answers if no search API keys are available.
+Serper free tier: 2500 queries/month. Brave free tier: 2000 queries/month.
 
 ## Plugin System (src/plugins/)
 Each plugin exports PersonalAIPlugin interface:
@@ -131,14 +134,14 @@ tests/ mirrors src/ structure
 Errors returned as values, never thrown
 
 ## Build Order
-M1: events→logger→interface→ollama→factory→context→assistant→cli→index
-M2: memory/types→long-term→short-term→wire into assistant
-M3: persona/types→loader→profiles→system-prompt→wire into assistant
-M4: tools/types→parser→registry→all tools→wire into assistant
-M5: openai-compatible→all providers→factory update→model-manager
-M6: web/server→web/client
-M7: setup wizard→polish
-M8: plugins/interface→loader→weather+github+calendar plugins
-M9: mcp/loader→mcp/client→wire into index
-M10: memory/embeddings→vector-store→upgrade search
-M11: voice/stt→tts→wakeword
+Done M1: events→logger→interface→ollama→factory→context→assistant→cli→index
+Done M2: memory/types→long-term→short-term→wire into assistant
+Done M3: persona/types→loader→profiles→system-prompt→wire into assistant
+Done M4: tools/types→parser→registry→all tools→wire into assistant
+Done M5: openai-compatible→all providers→factory update→model-manager
+Done M6: web/server→web/client
+Done M7: setup wizard→polish
+Planned M8: plugins/interface→loader→weather+github+calendar plugins
+Planned M9: mcp/loader→mcp/client→wire into index
+Planned M10: memory/embeddings→vector-store→upgrade search
+Planned M11: voice/stt→tts→wakeword

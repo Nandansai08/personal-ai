@@ -14,7 +14,7 @@ function safeEval(expr: string): number {
     throw new Error(`Invalid characters in expression: ${expr}`)
   }
   // Use Function constructor with numeric-only whitelist validated above
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+   
   const result = new Function(`"use strict"; return (${cleaned})`)() as unknown
   if (typeof result !== 'number' || !isFinite(result)) {
     throw new Error(`Expression did not evaluate to a finite number: ${expr}`)

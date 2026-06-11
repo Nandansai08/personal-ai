@@ -77,4 +77,5 @@ export interface LLMProvider {
 
   healthCheck?(): Promise<ProviderHealth>
   listModels?(): Promise<ModelInfo[]>
+  warmUp?(model: string): Promise<void>
 }

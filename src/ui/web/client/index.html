@@ -940,9 +940,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     <!-- ── Research view ──────────────────────────────────────────────── -->
     <div id="view-research" class="view">
       <div id="research-topbar">
-        <input id="research-search-input" type="search" placeholder="Search with Brave — enter a query…" autocomplete="off">
+        <input id="research-search-input" type="search" placeholder="Search the web — enter a query…" autocomplete="off">
         <button id="research-search-btn">Search</button>
-        <span class="brave-badge">Brave Search</span>
+        <span class="brave-badge">Web Search</span>
       </div>
       <div id="research-body">
         <div id="research-memories">
@@ -963,7 +963,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)">
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
               </svg>
-              <div style="font-size:13px;color:var(--text-muted)">Enter a query above to search with Brave</div>
+              <div style="font-size:13px;color:var(--text-muted)">Enter a query above to search the web</div>
               <div style="font-size:11.5px;color:var(--text-muted)">Results appear here. Memories shown on the left.</div>
             </div>
           </div>
@@ -1138,6 +1138,26 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <script>
 (function() {
   'use strict';
+
+  // ── Auth token ───────────────────────────────────────────────────────────
+  // The launch URL carries ?token=… once. Store it, strip it from the address
+  // bar, and attach it to every /api fetch and the WebSocket connection.
+  const urlToken = new URLSearchParams(location.search).get('token');
+  if (urlToken) {
+    sessionStorage.setItem('pai_token', urlToken);
+    history.replaceState(null, '', location.pathname);
+  }
+  const AUTH_TOKEN = sessionStorage.getItem('pai_token') || '';
+
+  const _fetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const url = typeof input === 'string' ? input : input.url;
+    if (url.startsWith('/api')) {
+      init = init || {};
+      init.headers = Object.assign({}, init.headers, { 'Authorization': 'Bearer ' + AUTH_TOKEN });
+    }
+    return _fetch(input, init);
+  };
 
   // ── State ──────────────────────────────────────────────────────────────────
   const state = {
@@ -1372,7 +1392,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   // ── WebSocket ──────────────────────────────────────────────────────────────
   function connect() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    try { state.ws = new WebSocket(`${proto}//${location.host}/api/chat`); }
+    try { state.ws = new WebSocket(`${proto}//${location.host}/api/chat?token=${encodeURIComponent(AUTH_TOKEN)}`); }
     catch { scheduleReconnect(); return; }
     setWsDot('');
 

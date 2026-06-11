@@ -2,6 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { eventBus } from '../core/events.js'
 import { logger } from '../core/logger.js'
+import { runHealthCheck } from './utils.js'
 import type {
   LLMProvider, ChatRequest, ChatChunk, ProviderHealth, ModelInfo, ToolDefinition,
 } from './interface.js'
@@ -12,6 +13,37 @@ function toAnthropicTools(tools: ToolDefinition[]): Anthropic.Tool[] {
     description:  t.description,
     input_schema: t.parameters as Anthropic.Tool['input_schema'],
   }))
+}
+
+function buildAnthropicMessages(messages: import('./interface.js').Message[]): Anthropic.MessageParam[] {
+  const result: Anthropic.MessageParam[] = []
+  for (const m of messages) {
+    if (m.role === 'system') continue
+    if (m.role === 'tool') {
+      result.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id ?? '', content: m.content }] })
+    } else {
+      result.push({ role: m.role as 'user' | 'assistant', content: m.content })
+    }
+  }
+  return result
+}
+
+interface AnthropicTokenState { input: number; output: number }
+
+function processAnthropicEvent(
+  event:  Anthropic.MessageStreamEvent,
+  tokens: AnthropicTokenState,
+): string | null {
+  if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+    return event.delta.text
+  }
+  if (event.type === 'message_delta' && event.usage) {
+    tokens.output = event.usage.output_tokens
+  }
+  if (event.type === 'message_start' && event.message.usage) {
+    tokens.input = event.message.usage.input_tokens
+  }
+  return null
 }
 
 // fallow-ignore-next-line unused-export
@@ -35,20 +67,7 @@ export class AnthropicProvider implements LLMProvider {
   async *chat(request: ChatRequest): AsyncGenerator<ChatChunk> {
     const startMs = Date.now()
 
-    const messages: Anthropic.MessageParam[] = []
-    for (const m of request.messages) {
-      if (m.role === 'system') continue  // system goes in system param
-      if (m.role === 'tool') {
-        messages.push({
-          role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: m.tool_call_id ?? '', content: m.content }],
-        })
-      } else if (m.role === 'assistant') {
-        messages.push({ role: 'assistant', content: m.content })
-      } else {
-        messages.push({ role: 'user', content: m.content })
-      }
-    }
+    const messages = buildAnthropicMessages(request.messages)
 
     const params: Anthropic.MessageStreamParams = {
       model:       request.model ?? this.model,
@@ -59,7 +78,7 @@ export class AnthropicProvider implements LLMProvider {
     if (request.systemPrompt) params.system = request.systemPrompt
     if (request.tools?.length) params.tools = toAnthropicTools(request.tools)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let stream: ReturnType<typeof this.client.messages.stream>
     try {
       stream = this.client.messages.stream(params)
@@ -68,28 +87,14 @@ export class AnthropicProvider implements LLMProvider {
       return
     }
 
-    let inputTokens = 0
-    let outputTokens = 0
+    const tokens: AnthropicTokenState = { input: 0, output: 0 }
 
     try {
       for await (const event of stream) {
-        if (event.type === 'content_block_delta') {
-          const delta = event.delta
-          if (delta.type === 'text_delta') {
-            yield { type: 'text', delta: delta.text }
-          } else if (delta.type === 'input_json_delta') {
-            // tool input delta — collected by content_block_stop
-          }
-        } else if (event.type === 'content_block_stop') {
-          // check if block was a tool_use
-        } else if (event.type === 'message_delta' && event.usage) {
-          outputTokens = event.usage.output_tokens
-        } else if (event.type === 'message_start' && event.message.usage) {
-          inputTokens = event.message.usage.input_tokens
-        }
+        const text = processAnthropicEvent(event, tokens)
+        if (text !== null) yield { type: 'text', delta: text }
       }
 
-      // Extract tool calls from final message
       const finalMsg = await stream.finalMessage()
       for (const block of finalMsg.content) {
         if (block.type === 'tool_use') {
@@ -103,19 +108,14 @@ export class AnthropicProvider implements LLMProvider {
 
     const latencyMs = Date.now() - startMs
     eventBus.emit('provider_latency', { provider: 'anthropic', model: this.model, latencyMs })
-    eventBus.emit('tokens_used', { input: inputTokens, output: outputTokens, provider: 'anthropic' })
+    eventBus.emit('tokens_used', { input: tokens.input, output: tokens.output, provider: 'anthropic' })
     logger.debug('anthropic', `done in ${latencyMs}ms`)
-    yield { type: 'done', usage: { input: inputTokens, output: outputTokens } }
+    yield { type: 'done', usage: { input: tokens.input, output: tokens.output } }
   }
 
+  // fallow-ignore dup:7cc3932e — mirrors openai-compatible; both use SDK .models.list(), can't deduplicate across SDKs
   async healthCheck(): Promise<ProviderHealth> {
-    const start = Date.now()
-    try {
-      await this.client.models.list()
-      return { ok: true, latencyMs: Date.now() - start, model: this.model }
-    } catch (err) {
-      return { ok: false, latencyMs: Date.now() - start, model: this.model, error: String(err) }
-    }
+    return runHealthCheck(this.model, () => this.client.models.list().then(() => undefined))
   }
 
   async listModels(): Promise<ModelInfo[]> {

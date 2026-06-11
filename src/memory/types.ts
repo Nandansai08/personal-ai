@@ -1,6 +1,13 @@
 // MIT License — personal-ai
 
-export type MemoryType = 'fact' | 'preference' | 'context' | 'episodic'
+export type MemoryType =
+  | 'fact' | 'preference' | 'context' | 'episodic'
+  | 'education' | 'career' | 'project' | 'personal'
+
+export const MEMORY_TYPES: MemoryType[] = [
+  'fact', 'preference', 'context', 'episodic',
+  'education', 'career', 'project', 'personal',
+]
 
 export interface Memory {
   id: string

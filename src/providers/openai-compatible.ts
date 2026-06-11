@@ -2,6 +2,7 @@
 import OpenAI from 'openai'
 import { eventBus } from '../core/events.js'
 import { logger } from '../core/logger.js'
+import { buildOAIMessages, flushToolCalls, runHealthCheck } from './utils.js'
 import type {
   LLMProvider, ChatRequest, ChatChunk, ProviderHealth, ModelInfo, ToolDefinition,
 } from './interface.js'
@@ -11,6 +12,39 @@ function toOAITools(tools: ToolDefinition[]): OpenAI.ChatCompletionTool[] {
     type: 'function' as const,
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }))
+}
+
+interface OAIChunkResult {
+  yields:       ChatChunk[]
+  inputTokens?: number
+  outputTokens?: number
+}
+
+function processOAIChunk(
+  chunk:     OpenAI.ChatCompletionChunk,
+  toolNames: Record<string, string>,
+  toolArgs:  Record<string, string>,
+): OAIChunkResult {
+  const choice = chunk.choices[0]
+  const yields: ChatChunk[] = []
+  if (!choice) return { yields }
+
+  const delta = choice.delta
+  if (delta.content) yields.push({ type: 'text', delta: delta.content })
+
+  for (const tc of delta.tool_calls ?? []) {
+    const idx = String(tc.index)
+    if (tc.function?.name)      toolNames[idx] = (toolNames[idx] ?? '') + tc.function.name
+    if (tc.function?.arguments) toolArgs[idx]  = (toolArgs[idx] ?? '') + tc.function.arguments
+  }
+
+  if (choice.finish_reason === 'tool_calls') yields.push(...flushToolCalls(toolNames, toolArgs, 'tc'))
+
+  return {
+    yields,
+    inputTokens:  chunk.usage?.prompt_tokens,
+    outputTokens: chunk.usage?.completion_tokens,
+  }
 }
 
 /**
@@ -35,21 +69,7 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
   async *chat(request: ChatRequest): AsyncGenerator<ChatChunk> {
     const startMs = Date.now()
 
-    const messages: OpenAI.ChatCompletionMessageParam[] = []
-    if (request.systemPrompt) {
-      messages.push({ role: 'system', content: request.systemPrompt })
-    }
-    for (const m of request.messages) {
-      if (m.role === 'tool') {
-        messages.push({ role: 'tool', content: m.content, tool_call_id: m.tool_call_id ?? '' })
-      } else if (m.role === 'system') {
-        messages.push({ role: 'system', content: m.content })
-      } else if (m.role === 'assistant') {
-        messages.push({ role: 'assistant', content: m.content })
-      } else {
-        messages.push({ role: 'user', content: m.content })
-      }
-    }
+    const messages = buildOAIMessages(request.messages, request.systemPrompt) as OpenAI.ChatCompletionMessageParam[]
 
     const params: OpenAI.ChatCompletionCreateParamsStreaming = {
       model:       request.model ?? this.model,
@@ -77,39 +97,10 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
 
     try {
       for await (const chunk of stream) {
-        const choice = chunk.choices[0]
-        if (!choice) continue
-
-        const delta = choice.delta
-
-        if (delta.content) {
-          yield { type: 'text', delta: delta.content }
-        }
-
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            const idx = String(tc.index)
-            if (tc.function?.name) toolNames[idx] = (toolNames[idx] ?? '') + tc.function.name
-            if (tc.function?.arguments) toolArgs[idx] = (toolArgs[idx] ?? '') + tc.function.arguments
-            if (tc.id) {
-              // First chunk with id — emit once args are complete (done at finish_reason)
-            }
-          }
-        }
-
-        if (choice.finish_reason === 'tool_calls') {
-          for (const [idx, name] of Object.entries(toolNames)) {
-            const argsRaw = toolArgs[idx] ?? '{}'
-            let args: unknown = {}
-            try { args = JSON.parse(argsRaw) } catch { args = { raw: argsRaw } }
-            yield { type: 'tool_call', id: `tc_${idx}_${Date.now()}`, name, arguments: args }
-          }
-        }
-
-        if (chunk.usage) {
-          inputTokens  = chunk.usage.prompt_tokens
-          outputTokens = chunk.usage.completion_tokens
-        }
+        const result = processOAIChunk(chunk, toolNames, toolArgs)
+        for (const c of result.yields) yield c
+        if (result.inputTokens  !== undefined) inputTokens  = result.inputTokens
+        if (result.outputTokens !== undefined) outputTokens = result.outputTokens
       }
     } catch (err) {
       yield { type: 'error', message: `${this.name} stream error: ${String(err)}` }
@@ -126,13 +117,7 @@ export abstract class OpenAICompatibleProvider implements LLMProvider {
   }
 
   async healthCheck(): Promise<ProviderHealth> {
-    const start = Date.now()
-    try {
-      await this.client.models.list()
-      return { ok: true, latencyMs: Date.now() - start, model: this.model }
-    } catch (err) {
-      return { ok: false, latencyMs: Date.now() - start, model: this.model, error: String(err) }
-    }
+    return runHealthCheck(this.model, () => this.client.models.list().then(() => undefined))
   }
 
   async listModels(): Promise<ModelInfo[]> {

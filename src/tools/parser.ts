@@ -79,16 +79,48 @@ function parseJsonBlock(text: string): ToolCall[] | null {
 }
 
 /**
- * Parse tool calls from model output using 3 strategies in priority order:
+ * Strategy 4: named-tool XML — what some models (Gemini) emit as plain text:
+ *   <web_search><query>x</query><count>1</count></web_search>
+ *   <memory><action>save</action><content>…</content></memory>
+ * Also tolerates the malformed close `</args>` instead of `</tool_name>`.
+ * Callers MUST filter results against the tool registry — this pattern is
+ * generic enough to false-positive on arbitrary XML-ish text.
+ */
+function parseNamedToolXml(text: string): ToolCall[] | null {
+  const outer = /<([a-z][\w]*)>([\s\S]*?)(<\/\1>|<\/args>)/gi
+  const calls: ToolCall[] = []
+  for (const match of text.matchAll(outer)) {
+    const name  = match[1]!.toLowerCase()
+    const inner = match[2]!
+    if (name === 'tool' || name === 'args') continue // strategy-2 territory
+    const args: Record<string, unknown> = {}
+    const child = /<(\w+)>([\s\S]*?)<\/\1>/g
+    let hasChildren = false
+    for (const c of inner.matchAll(child)) {
+      hasChildren = true
+      const raw = c[2]!.trim()
+      const num = Number(raw)
+      args[c[1]!] = raw !== '' && !Number.isNaN(num) ? num : raw
+    }
+    if (!hasChildren) continue // <b>bold</b> etc. — not a tool call
+    calls.push({ id: genId(), name, arguments: args })
+  }
+  return calls.length > 0 ? calls : null
+}
+
+/**
+ * Parse tool calls from model output using 4 strategies in priority order:
  * 1. Native JSON array (Ollama tool_calls)
  * 2. Gemma3 two-tag XML
  * 3. JSON code block
+ * 4. Named-tool XML (Gemini-style text leakage) — filter against registry!
  */
 export function parseToolCalls(text: string): ToolCall[] {
   return (
     parseNativeJson(text) ??
     parseGemmaXml(text) ??
     parseJsonBlock(text) ??
+    parseNamedToolXml(text) ??
     []
   )
 }

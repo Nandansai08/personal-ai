@@ -2,13 +2,11 @@
 import 'dotenv/config'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { createProvider } from './providers/factory.js'
 import { ConversationContext } from './core/context.js'
 import { AssistantEngine } from './core/assistant.js'
-import { LongTermMemory } from './memory/long-term.js'
-import { loadPersona, loadProfiles, watchPersona, watchProfiles } from './persona/loader.js'
-import { ProfileManager } from './persona/profiles.js'
+import { watchPersona, watchProfiles } from './persona/loader.js'
 import { buildSystemPrompt, isGemma3Model } from './persona/system-prompt.js'
 import { startCLI } from './ui/cli.js'
 import { needsSetup, runSetupWizard } from './ui/setup.js'
@@ -17,12 +15,7 @@ import { ModelManager, defaultModelsConfig } from './core/model-manager.js'
 import { eventBus } from './core/events.js'
 import { logger } from './core/logger.js'
 import { toolRegistry } from './tools/registry.js'
-import { webSearchTool } from './tools/web-search.js'
-import { notesTool } from './tools/notes.js'
-import { tasksTool } from './tools/tasks.js'
-import { calculatorTool } from './tools/calculator.js'
-import { fileReaderTool } from './tools/file-reader.js'
-import { createMemoryTool } from './tools/memory-tool.js'
+import { createAppCore } from './bootstrap.js'
 import type { Memory } from './memory/types.js'
 
 void logger
@@ -30,38 +23,36 @@ void logger
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CONFIG    = path.join(__dirname, '..', 'config')
 
+/**
+ * Resolve the .env location. Repo checkouts use the package-local .env;
+ * npx / global installs fall back to ~/.personal-ai/.env so config survives
+ * npm cache cleanup.
+ */
+function resolveEnvPath(): string {
+  const localEnv = path.join(__dirname, '..', '.env')
+  if (fs.existsSync(localEnv)) return localEnv
+  return path.join(os.homedir(), '.personal-ai', '.env')
+}
+
 async function main(): Promise<void> {
-  const envPath = path.join(__dirname, '..', '.env')
+  const envPath = resolveEnvPath()
+  const { config } = await import('dotenv')
+  config({ path: envPath })
+
   if (needsSetup(envPath)) {
+    fs.mkdirSync(path.dirname(envPath), { recursive: true })
     await runSetupWizard(envPath)
     // re-load env after wizard writes .env
-    const { config } = await import('dotenv')
     config({ path: envPath, override: true })
   }
 
-  // Load persona + profiles
-  const persona        = loadPersona(path.join(CONFIG, 'persona.yaml'))
-  const profilesCfg    = loadProfiles(path.join(CONFIG, 'profiles.yaml'))
-  const profileManager = new ProfileManager(profilesCfg)
-
-  let provider
-  try {
-    provider = await createProvider()
-  } catch (err) {
-    console.error('Failed to initialize provider:', err)
+  const boot = await createAppCore(CONFIG)
+  if (!boot.ok) {
+    console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
-
-  const memory  = new LongTermMemory()
+  const { provider, profileManager, memory, persona } = boot.core
   const context = new ConversationContext()
-
-  // Register all tools
-  toolRegistry.register(webSearchTool)
-  toolRegistry.register(notesTool)
-  toolRegistry.register(tasksTool)
-  toolRegistry.register(calculatorTool)
-  toolRegistry.register(fileReaderTool)
-  toolRegistry.register(createMemoryTool(memory))
 
   let currentPersona = persona
 
@@ -82,7 +73,10 @@ async function main(): Promise<void> {
     ? new ModelManager(defaultModelsConfig(), profileManager)
     : new ModelManager({ default: provider.model, tasks: {} }, profileManager)
 
-  const engine = new AssistantEngine(provider, getSystemPrompt, memory, toolRegistry, profileManager, context, modelManager)
+  const engine = new AssistantEngine({
+    provider, getSystemPrompt, memory,
+    registry: toolRegistry, profileManager, context, modelManager,
+  })
 
   process.on('SIGINT', () => {
     eventBus.emit('session_ended', {
@@ -96,6 +90,7 @@ async function main(): Promise<void> {
 
   let webServer: import('node:http').Server | undefined
   let webPort: number | undefined
+  let webToken: string | undefined
 
   const startWebFn = async (): Promise<string> => {
     if (!webServer) {
@@ -111,11 +106,17 @@ async function main(): Promise<void> {
       })
       webServer = result.server
       webPort   = result.port
+      webToken  = result.token
     }
-    return getServerUrl(webPort!)
+    return getServerUrl(webPort!, webToken)
   }
 
-  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn)
+  const reloadProvider = async () => {
+    const { createProvider } = await import('./providers/factory.js')
+    return createProvider()
+  }
+
+  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn, reloadProvider, envPath)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

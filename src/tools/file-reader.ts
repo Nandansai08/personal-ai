@@ -7,15 +7,49 @@ import type { RegisteredTool, ToolResult } from './types.js'
 
 const MAX_BYTES = 100_000 // 100 KB read limit
 
-/** Resolve and validate path stays within allowed roots. */
+// Security: filenames that must never be readable by the model, regardless of
+// location — credentials, keys, and shell history are prime prompt-injection
+// exfiltration targets.
+const DENIED_NAMES = /^(\.env(\..*)?|id_rsa.*|id_ed25519.*|id_ecdsa.*|.*\.pem|.*\.key|credentials(\..*)?|\.netrc|\.npmrc|\.bash_history|\.zsh_history)$/i
+const DENIED_DIRS  = ['.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker']
+
+/** Resolve path, expanding ~. */
 function resolveSafe(filePath: string): string {
-  const resolved = path.resolve(filePath.startsWith('~')
+  return path.resolve(filePath.startsWith('~')
     ? filePath.replace('~', os.homedir())
     : filePath)
-  return resolved
+}
+
+/**
+ * Security gate: deny sensitive files and directories. Allow-list roots are
+ * configurable via FILE_READER_ROOTS (comma-separated); defaults to home dir
+ * and current working directory.
+ */
+function checkAccess(resolved: string): string | null {
+  const base = path.basename(resolved)
+  if (DENIED_NAMES.test(base)) {
+    return `Access denied: ${base} may contain credentials`
+  }
+  const segments = resolved.split(/[\\/]/)
+  for (const dir of DENIED_DIRS) {
+    if (segments.includes(dir)) return `Access denied: ${dir} directory is protected`
+  }
+  const rootsEnv = process.env['FILE_READER_ROOTS']
+  const roots = rootsEnv
+    ? rootsEnv.split(',').map(r => path.resolve(r.trim()))
+    : [os.homedir(), process.cwd()]
+  const inRoot = roots.some(root => {
+    const rel = path.relative(root, resolved)
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+  })
+  if (!inRoot) {
+    return `Access denied: path outside allowed roots (${roots.join(', ')}). Set FILE_READER_ROOTS in .env to extend.`
+  }
+  return null
 }
 
 export const fileReaderTool: RegisteredTool = {
+  requiresConfirmation: true,
   definition: {
     name: 'file_reader',
     description: 'Read local text file, max 100KB.',
@@ -36,8 +70,19 @@ export const fileReaderTool: RegisteredTool = {
 
     const resolved = resolveSafe(filePath)
 
+    const denied = checkAccess(resolved)
+    if (denied) return { success: false, data: null, error: denied }
+
     if (!fs.existsSync(resolved)) {
       return { success: false, data: null, error: `File not found: ${resolved}` }
+    }
+
+    // Re-check the real path — a symlink inside an allowed root must not
+    // escape to a denied location.
+    const real = fs.realpathSync(resolved)
+    if (real !== resolved) {
+      const deniedReal = checkAccess(real)
+      if (deniedReal) return { success: false, data: null, error: deniedReal }
     }
 
     const stat = fs.statSync(resolved)

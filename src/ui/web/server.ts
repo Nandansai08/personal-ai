@@ -1,6 +1,7 @@
 // MIT License — personal-ai
 import http from 'node:http'
 import net from 'node:net'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -42,14 +43,57 @@ function findFreePort(start: number): Promise<number> {
   })
 }
 
-export async function createWebServer(opts: WebServerOptions): Promise<{ server: http.Server; port: number }> {
+export async function createWebServer(opts: WebServerOptions): Promise<{ server: http.Server; port: number; token: string }> {
   const { provider, memory, profileManager, registry, modelManager, personaPath } = opts
   const preferred = opts.port ?? parseInt(process.env['PORT'] ?? '3000', 10)
   const PORT = await findFreePort(preferred)
 
+  // Security: per-session bearer token. Required on every /api request and WS
+  // upgrade. The launch URL carries it once (?token=…); the client stores it.
+  // Override with WEB_AUTH_TOKEN for a stable token across restarts.
+  const TOKEN = process.env['WEB_AUTH_TOKEN'] ?? randomBytes(16).toString('hex')
+
   const app = express()
+
+  // Security: validate Host header to block DNS-rebinding attacks.
+  // The server binds to 127.0.0.1 only; this guards against a malicious domain
+  // resolving to 127.0.0.1 and bypassing the same-origin policy.
+  const isLocalHost = (host: string | undefined): boolean => {
+    if (!host) return false
+    const name = host.split(':')[0] ?? ''
+    return name === 'localhost' || name === '127.0.0.1' || name === '[::1]'
+  }
+  app.use((req, res, next) => {
+    if (!isLocalHost(req.headers.host)) {
+      res.status(403).json({ error: 'forbidden: invalid host' })
+      return
+    }
+    next()
+  })
+
+  const tokenOk = (candidate: string | undefined): boolean => {
+    if (!candidate) return false
+    const a = Buffer.from(candidate)
+    const b = Buffer.from(TOKEN)
+    return a.length === b.length && timingSafeEqual(a, b)
+  }
+
+  // Security: every /api request must carry the session token
+  // (Authorization: Bearer <token> or ?token=<token>). Static files are
+  // exempt — the client page itself reads the token from the launch URL.
+  app.use('/api', (req, res, next) => {
+    const header = req.headers.authorization
+    const bearer = header?.startsWith('Bearer ') ? header.slice(7) : undefined
+    const query  = typeof req.query['token'] === 'string' ? req.query['token'] : undefined
+    if (!tokenOk(bearer ?? query)) {
+      res.status(401).json({ error: 'unauthorized: missing or invalid token' })
+      return
+    }
+    next()
+  })
+
   app.use(cors({ origin: [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`] }))
-  app.use(express.json())
+  app.use(express.json({ limit: '256kb' }))
   app.use(express.static(CLIENT_DIR))
 
   // ── REST endpoints ──────────────────────────────────────────────────
@@ -185,7 +229,19 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
   const server = http.createServer(app)
   const wss = new WebSocketServer({ server, path: '/api/chat' })
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+    // Security: reject cross-site WebSocket connections. Browsers send the
+    // page's Origin on WS upgrade — any non-localhost origin means a foreign
+    // website is trying to hijack the local assistant (and its tools).
+    const origin = req.headers.origin
+    const host   = req.headers.host
+    const originOk = !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)
+    const wsToken  = new URL(req.url ?? '', `http://${host ?? 'localhost'}`).searchParams.get('token') ?? undefined
+    if (!originOk || !isLocalHost(host) || !tokenOk(wsToken)) {
+      logger.warn('web', `rejected WS connection (origin=${origin ?? 'none'}, host=${host ?? 'none'}, token=${wsToken ? 'bad' : 'missing'})`)
+      ws.close(1008, 'forbidden')
+      return
+    }
     logger.debug('web', 'WS client connected')
     const context = new ConversationContext()
 
@@ -200,15 +256,15 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
       isGemma3Model(modelManager ? modelManager.getCurrentModel() : provider.model),
     )
 
-    const engine = new AssistantEngine(
+    const engine = new AssistantEngine({
       provider,
-      makeSystemPrompt,
+      getSystemPrompt: makeSystemPrompt,
       memory,
       registry,
       profileManager,
       context,
       modelManager,
-    )
+    })
 
     const send = (data: unknown): void => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data))
@@ -265,12 +321,15 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
     ws.on('error', (err) => { logger.error('web', 'WS error', err) })
   })
 
-  await new Promise<void>(resolve => server.listen(PORT, resolve))
+  // Security: bind to loopback only — never expose the assistant (and its
+  // file/memory tools) to the LAN. Remote access requires explicit opt-in
+  // via a reverse proxy with authentication.
+  await new Promise<void>(resolve => server.listen(PORT, '127.0.0.1', resolve))
   logger.debug('web', `listening on :${PORT}`)
 
-  return { server, port: PORT }
+  return { server, port: PORT, token: TOKEN }
 }
 
-export function getServerUrl(port = 3000): string {
-  return `http://localhost:${port}`
+export function getServerUrl(port = 3000, token?: string): string {
+  return token ? `http://localhost:${port}/?token=${token}` : `http://localhost:${port}`
 }

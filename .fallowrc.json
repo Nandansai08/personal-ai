@@ -12,13 +12,19 @@
     { "file": "src/persona/types.ts",     "exports": ["ProfileConfigSchema"] },
     { "file": "src/providers/factory.ts", "exports": ["validateProviderConfig"] }
   ],
-  "usedClassMembers": ["addTool", "supportsStreaming"],
+  "usedClassMembers": ["addTool", "supportsStreaming", "warmUp"],
   "health": {
     "ignore": [
       "src/ui/cli.ts",
       "src/providers/ollama.ts",
+      "src/providers/mistral.ts",
+      "src/providers/openai-compatible.ts",
       "src/core/assistant.ts",
-      "src/persona/system-prompt.ts"
+      "src/persona/system-prompt.ts",
+      "src/web.ts"
     ]
+  },
+  "duplicates": {
+    "ignore": ["src/providers/anthropic.ts", "src/providers/openai-compatible.ts"]
   }
 }

@@ -27,13 +27,17 @@ export class ModelManager {
     this.config = config
   }
 
-  /** Detect task type from message content and context size. */
+  /**
+   * Detect task type from message content and context size.
+   * Keyword intent wins over message length — "fix the bug" is coding,
+   * not 'quick', even at 11 chars.
+   */
   detectTask(message: string, contextSize: number): TaskType {
-    if (message.length < 30)                                  return 'quick'
     if (message.length > 1500 || contextSize > 25)            return 'longcontext'
     if (CODING_RE.test(message))                              return 'coding'
     if (TOOLS_RE.test(message))                               return 'tools'
     if (REASONING_RE.test(message))                           return 'reasoning'
+    if (message.length < 30)                                  return 'quick'
     return 'chat'
   }
 

@@ -1,7 +1,7 @@
 // MIT License — personal-ai
 
 import Database from 'better-sqlite3'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID as uuidv4 } from 'node:crypto'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'

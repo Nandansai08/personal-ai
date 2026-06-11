@@ -1,10 +1,19 @@
 // MIT License — personal-ai
 import { eventBus } from '../core/events.js'
 import { logger } from '../core/logger.js'
+import { readStreamLines } from './utils.js'
 import type {
   LLMProvider, ChatRequest, ChatChunk, ProviderHealth, ModelInfo, TokenUsage,
   ToolDefinition,
 } from './interface.js'
+
+function parseOllamaError(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { error?: string }
+    if (typeof parsed?.error === 'string') return parsed.error
+  } catch { /* not JSON, use raw */ }
+  return raw
+}
 
 const NATIVE_TOOL_PREFIXES = [
   'qwen2.5:', 'qwen2.5-coder:', 'llama3.1:', 'llama3.2:', 'mistral-nemo:', 'mistral:',
@@ -89,26 +98,16 @@ async function* readNdjsonStream(
   body: ReadableStream<Uint8Array>,
   useXml: boolean,
 ): AsyncGenerator<ChatChunk | { usage: TokenUsage }> {
-  const reader  = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer    = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      let parsed: OllamaChunk
-      try { parsed = JSON.parse(trimmed) as OllamaChunk } catch { continue }
-      if (parsed.done) {
-        const d = parsed as OllamaDoneChunk
-        yield { usage: { input: d.prompt_eval_count ?? 0, output: d.eval_count ?? 0 } }
-      } else {
-        yield* processStreamChunk(parsed as OllamaStreamChunk, useXml)
-      }
+  for await (const line of readStreamLines(body)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    let parsed: OllamaChunk
+    try { parsed = JSON.parse(trimmed) as OllamaChunk } catch { continue }
+    if (parsed.done) {
+      const d = parsed as OllamaDoneChunk
+      yield { usage: { input: d.prompt_eval_count ?? 0, output: d.eval_count ?? 0 } }
+    } else {
+      yield* processStreamChunk(parsed as OllamaStreamChunk, useXml)
     }
   }
 }
@@ -129,7 +128,9 @@ export class OllamaProvider implements LLMProvider {
     this.baseUrl      = process.env['OLLAMA_BASE_URL']    ?? 'http://localhost:11434'
     this.defaultModel = process.env['OLLAMA_MODEL']       ?? 'qwen2.5:14b'
     this.model        = this.defaultModel
-    this.numCtx       = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '2048', 10)
+    // 8192 default: 2048 silently truncates the system prompt once history
+    // grows past a few messages. Lower via OLLAMA_NUM_CTX on RAM-tight machines.
+    this.numCtx       = parseInt(process.env['OLLAMA_NUM_CTX']      ?? '8192', 10)
     this.numPredict   = parseInt(process.env['OLLAMA_NUM_PREDICT']   ?? '512',  10)
     this.temperature  = parseFloat(process.env['OLLAMA_TEMPERATURE'] ?? '0.7')
     this.supportsToolUse = isNativeToolModel(this.model)
@@ -143,11 +144,14 @@ export class OllamaProvider implements LLMProvider {
 
   async *chat(request: ChatRequest): AsyncGenerator<ChatChunk> {
     const startMs   = Date.now()
-    const useNative = isNativeToolModel(this.model) && (request.tools?.length ?? 0) > 0
+    // request.model is authoritative — avoids mutating shared provider state
+    // when multiple sessions (CLI + web) use the same instance concurrently
+    const model     = request.model ?? this.model
+    const useNative = isNativeToolModel(model) && (request.tools?.length ?? 0) > 0
     const useXml    = !useNative && (request.tools?.length ?? 0) > 0
 
     const body: Record<string, unknown> = {
-      model:      this.model,
+      model,
       messages:   buildMessages(request, useXml),
       stream:     true,
       keep_alive: -1,
@@ -174,13 +178,13 @@ export class OllamaProvider implements LLMProvider {
 
     if (!response.ok) {
       const errText = await response.text()
+      const errMsg  = parseOllamaError(errText)
       // Model not pulled — fall back to default and retry once
       if (response.status === 404 && errText.includes('not found') && body['model'] !== this.defaultModel) {
         const missing = String(body['model'])
         logger.warn('ollama', `model "${missing}" not found, falling back to "${this.defaultModel}" (run: ollama pull ${missing})`)
         yield { type: 'model_switch', from: missing, to: this.defaultModel }
         body['model'] = this.defaultModel
-        this.model = this.defaultModel
         try {
           response = await fetch(`${this.baseUrl}/api/chat`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -190,11 +194,11 @@ export class OllamaProvider implements LLMProvider {
           return
         }
         if (!response.ok) {
-          yield { type: 'error', message: `Ollama HTTP ${response.status}: ${await response.text()}` }
+          yield { type: 'error', message: parseOllamaError(await response.text()) }
           return
         }
       } else {
-        yield { type: 'error', message: `Ollama HTTP ${response.status}: ${errText}` }
+        yield { type: 'error', message: errMsg }
         return
       }
     }
@@ -207,7 +211,7 @@ export class OllamaProvider implements LLMProvider {
     }
 
     const latencyMs = Date.now() - startMs
-    eventBus.emit('provider_latency', { provider: 'ollama', model: this.model, latencyMs })
+    eventBus.emit('provider_latency', { provider: 'ollama', model: String(body['model']), latencyMs })
     if (usage) eventBus.emit('tokens_used', { input: usage.input, output: usage.output, provider: 'ollama' })
     yield { type: 'done', usage }
   }
@@ -225,7 +229,6 @@ export class OllamaProvider implements LLMProvider {
     }
   }
 
-  /** Pre-load model into RAM so first real request is fast. */
   async warmUp(model?: string): Promise<void> {
     const target = model ?? this.model
     try {

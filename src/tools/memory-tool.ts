@@ -17,7 +17,7 @@ export function createMemoryTool(memory: LongTermMemory): RegisteredTool {
         properties: {
           action:  { type: 'string', description: 'save | search | list | stats', enum: ['save', 'search', 'list', 'stats'] },
           content: { type: 'string', description: 'Memory content (for save)' },
-          type:    { type: 'string', description: 'fact | preference | context | episodic', enum: ['fact', 'preference', 'context', 'episodic'] },
+          type:    { type: 'string', description: 'fact | preference | context | episodic | education | career | project | personal', enum: ['fact', 'preference', 'context', 'episodic', 'education', 'career', 'project', 'personal'] },
           query:   { type: 'string', description: 'Search query (for search)' },
           limit:   { type: 'number', description: 'Max results (for search/list, default 8)' },
           importance: { type: 'number', description: 'Importance 1-10 (for save, default 5)' },
@@ -33,7 +33,7 @@ export function createMemoryTool(memory: LongTermMemory): RegisteredTool {
         case 'save': {
           const content = String(a['content'] ?? '').trim()
           if (!content) return { success: false, data: null, error: 'content required' }
-          const type = (a['type'] as 'fact' | 'preference' | 'context' | 'episodic') ?? 'fact'
+          const type = (a['type'] as import('../memory/types.js').MemoryType) ?? 'fact'
           const importance = Math.min(10, Math.max(1, Number(a['importance'] ?? 5)))
           const saved = memory.save({ content, type, importance })
           return { success: true, data: saved }

@@ -11,7 +11,18 @@ import type { ProfileManager } from '../persona/profiles.js'
 import type { ToolRegistry } from '../tools/registry.js'
 import type { ModelManager } from '../core/model-manager.js'
 import { logger } from '../core/logger.js'
+import { eventBus } from '../core/events.js'
 import { ConversationContext } from '../core/context.js'
+
+import { PROVIDER_META, inferProvider } from '../providers/metadata.js'
+import { makeToolXmlStripper, patchEnvFile, friendlyError, createStreamRenderer } from './cli-helpers.js'
+
+// Re-export for tests and external callers
+export { inferProvider, makeToolXmlStripper, patchEnvFile, friendlyError, createStreamRenderer }
+
+function modelEnvKeyFor(provider: string): string | undefined {
+  return PROVIDER_META[provider as keyof typeof PROVIDER_META]?.modelEnvKey
+}
 
 const BANNER = `
 ${chalk.cyan('╔═══════════════════════════════════════╗')}
@@ -34,7 +45,10 @@ const HELP = `
   ${chalk.cyan('/switch')} <provider>     Show env vars for a provider switch
   ${chalk.cyan('/memory')}                Memory stats
   ${chalk.cyan('/memory list')}           List recent memories
-  ${chalk.cyan('/memory search')} <q>     Search memories
+  ${chalk.cyan('/memory search')} <q>     Search memories (keyword)
+  ${chalk.cyan('/memory semantic')} <q>   Semantic similarity search
+  ${chalk.cyan('/memory rebuild-index')}  Re-embed all memories
+  ${chalk.cyan('/memory stats')}          Stats incl. vector index
   ${chalk.cyan('/memory save')} <t> <c>   Save memory (type: fact|preference|context|episodic)
   ${chalk.cyan('/profile')}               Show active profile
   ${chalk.cyan('/profile list')}          List all profiles
@@ -43,6 +57,8 @@ const HELP = `
   ${chalk.cyan('/research')}              Switch to researcher profile
   ${chalk.cyan('/tutor')}                 Switch to tutor profile
   ${chalk.cyan('/tools')}                 List registered tools
+  ${chalk.cyan('/save')} [name]           Save conversation to a named session
+  ${chalk.cyan('/load')} [name]           Restore a saved session (no name = list)
   ${chalk.cyan('/cost')}                  Show session token usage and estimated cost
   ${chalk.cyan('/web')}                   Start web UI server (default port 3000)
   ${chalk.cyan('/help')}                  Show this message
@@ -55,19 +71,62 @@ function makePrompt(provider: LLMProvider, profileManager?: ProfileManager, mode
   return chalk.cyan(`[${label}] `) + chalk.bold('> ')
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  personal: 'Personal', education: 'Education', career: 'Career',
+  project: 'Projects', preference: 'Preferences', fact: 'Facts',
+  context: 'Context', episodic: 'Episodic',
+}
+
 async function handleMemoryCmd(parts: string[], memory: LongTermMemory): Promise<void> {
   const sub = parts[1]?.toLowerCase()
   if (!sub) {
     const s = memory.getStats()
+    if (s.total === 0) { console.log(chalk.dim('No memories yet. Say "remember …" to save one.')); return }
+    console.log(chalk.bold(`\nMemory (${s.total} stored, avg importance ${s.avgImportance}):`))
+    for (const [type, label] of Object.entries(TYPE_LABELS)) {
+      const items = memory.getByType(type as import('../memory/types.js').MemoryType, 5)
+      if (!items.length) continue
+      console.log(chalk.cyan(`\n  ${label}:`))
+      for (const m of items) {
+        console.log(`    • ${m.content.slice(0, 90)}${m.content.length > 90 ? '…' : ''}`)
+      }
+    }
+    console.log(chalk.dim('\n  More: /memory list · /memory search <q> · /memory stats\n'))
+    return
+  }
+  if (sub === 'stats') {
+    const s = memory.getStats()
+    const idx = memory.getIndexStats()
     console.log(chalk.bold('\nMemory stats:'))
-    console.log(`  Total:    ${s.total}`)
-    console.log(`  Facts:    ${s.byType.fact}`)
-    console.log(`  Prefs:    ${s.byType.preference}`)
-    console.log(`  Context:  ${s.byType.context}`)
-    console.log(`  Episodic: ${s.byType.episodic}`)
-    console.log(`  Avg importance: ${s.avgImportance}`)
+    console.log(`  Total: ${s.total}   Avg importance: ${s.avgImportance}`)
+    for (const [type, n] of Object.entries(s.byType)) {
+      if (n > 0) console.log(`  ${type.padEnd(12)} ${n}`)
+    }
     if (s.mostAccessed) console.log(`  Most accessed: "${s.mostAccessed.content.slice(0, 60)}"`)
+    console.log(idx.embedder
+      ? `  Semantic index: ${idx.indexed}/${s.total} embedded (${idx.embedder})`
+      : chalk.dim('  Semantic index: off — pull nomic-embed-text and run /memory rebuild-index'))
     console.log()
+    return
+  }
+  if (sub === 'semantic') {
+    const query = parts.slice(2).join(' ')
+    if (!query) { console.log(chalk.yellow('Usage: /memory semantic <query>')); return }
+    const results = await memory.searchSemantic(query, 10)
+    if (!results.length) { console.log(chalk.dim('No matches.')); return }
+    console.log(chalk.bold(`\nSemantic matches for "${query}":`))
+    for (const m of results) {
+      console.log(`  ${chalk.cyan(`[${m.type}]`)} ${m.content.slice(0, 90)}`)
+    }
+    console.log()
+    return
+  }
+  if (sub === 'rebuild-index') {
+    process.stdout.write(chalk.dim('  Rebuilding vector index… '))
+    const n = await memory.rebuildIndex()
+    console.log(n > 0
+      ? chalk.green(`✓ ${n} memories embedded`)
+      : chalk.yellow('0 embedded — is Ollama running with nomic-embed-text pulled? (ollama pull nomic-embed-text)'))
     return
   }
   if (sub === 'list') {
@@ -127,39 +186,21 @@ function handleProfileCmd(parts: string[], profileManager: ProfileManager): void
   switchProfile(sub, profileManager)
 }
 
-/** Maps raw provider error messages to actionable user-facing strings. */
-function friendlyError(msg: string): string {
-  if (/401|unauthorized|invalid.*key|api.?key/i.test(msg))
-    return 'Invalid API key. Check PROVIDER_API_KEY in .env'
-  if (/ECONNREFUSED|ENOTFOUND|connect.*ollama/i.test(msg))
-    return 'Ollama not running. Run: ollama serve'
-  if (/model.*not found|pull.*model|does not exist/i.test(msg)) {
-    const m = msg.match(/["']([^"']+)["']/)
-    return `Model ${m?.[1] ?? 'unknown'} not installed. Run: ollama pull ${m?.[1] ?? '<model>'}`
-  }
-  if (/429|rate.?limit|too many requests/i.test(msg))
-    return 'Rate limit hit. Wait 60s or run /switch for provider-switch instructions'
-  return msg
-}
-
-const PROVIDER_SWITCH_HELP: Record<string, string[]> = {
-  ollama: [
-    'PROVIDER=ollama',
-    'OLLAMA_BASE_URL=http://localhost:11434',
-    'OLLAMA_MODEL=qwen2.5:14b',
-  ],
-  anthropic: ['PROVIDER=anthropic', 'ANTHROPIC_API_KEY=...', 'ANTHROPIC_MODEL=claude-sonnet-4-6'],
-  openai:    ['PROVIDER=openai',    'OPENAI_API_KEY=...',    'OPENAI_MODEL=gpt-4o-mini'],
-  groq:      ['PROVIDER=groq',      'GROQ_API_KEY=...',      'GROQ_MODEL=llama-3.3-70b-versatile'],
-  gemini:    ['PROVIDER=gemini',    'GEMINI_API_KEY=...',    'GEMINI_MODEL=gemini-2.0-flash'],
-  mistral:   ['PROVIDER=mistral',   'MISTRAL_API_KEY=...',   'MISTRAL_MODEL=mistral-large-latest'],
-  lmstudio:  ['PROVIDER=lmstudio',  'LMSTUDIO_BASE_URL=http://localhost:1234/v1', 'LMSTUDIO_MODEL=local-model'],
-  together:  ['PROVIDER=together',  'TOGETHER_API_KEY=...',  'TOGETHER_MODEL=meta-llama/Llama-3.3-70B-Instruct-Turbo'],
+/** Derive /switch env-var instructions from the central provider table. */
+function switchHelpFor(key: string): string[] | undefined {
+  const meta = PROVIDER_META[key as keyof typeof PROVIDER_META]
+  if (!meta) return undefined
+  const lines = [`PROVIDER=${meta.key}`]
+  if (meta.key === 'ollama')   lines.push('OLLAMA_BASE_URL=http://localhost:11434')
+  if (meta.key === 'lmstudio') lines.push('LMSTUDIO_BASE_URL=http://localhost:1234/v1')
+  if (meta.envKey) lines.push(`${meta.envKey}=...`)
+  lines.push(`${meta.modelEnvKey}=${meta.defaultModel}`)
+  return lines
 }
 
 function handleSwitchCmd(parts: string[]): void {
   const provider = parts[1]?.toLowerCase()
-  const names = Object.keys(PROVIDER_SWITCH_HELP)
+  const names = Object.keys(PROVIDER_META)
 
   if (!provider) {
     console.log(chalk.bold('\nProvider switching:'))
@@ -169,7 +210,7 @@ function handleSwitchCmd(parts: string[]): void {
     return
   }
 
-  const lines = PROVIDER_SWITCH_HELP[provider]
+  const lines = switchHelpFor(provider)
   if (!lines) {
     console.log(chalk.yellow(`Unknown provider "${provider}". Valid: ${names.join(', ')}`))
     return
@@ -190,7 +231,14 @@ function switchProfile(name: string, profileManager: ProfileManager): void {
   }
 }
 
-function handleModelCmd(parts: string[], modelManager: ModelManager): void {
+async function handleModelCmd(
+  parts:          string[],
+  modelManager:   ModelManager,
+  engine:         AssistantEngine,
+  providerName:   string,
+  envPath:        string,
+  reloadProvider: () => Promise<LLMProvider>,
+): Promise<LLMProvider | undefined> {
   const sub = parts[1]?.toLowerCase()
   if (!sub) {
     const stats = modelManager.getStats()
@@ -209,8 +257,88 @@ function handleModelCmd(parts: string[], modelManager: ModelManager): void {
     console.log(chalk.green('✓ Auto task-based routing enabled'))
     return
   }
-  modelManager.setModel(parts.slice(1).join(' '))
+
+  const modelName = parts.slice(1).join(' ')
+  const targetProvider = inferProvider(modelName)
+
+  // Provider switch needed
+  if (targetProvider && targetProvider !== providerName) {
+    const modelKey = modelEnvKeyFor(targetProvider)
+    const isBareProvider = modelName.toLowerCase() === targetProvider
+    // When user types bare provider name (e.g. /model ollama), keep existing model env var
+    const actualModel = isBareProvider
+      ? (modelKey ? (process.env[modelKey] ?? modelName) : modelName)
+      : modelName
+
+    const changes: Record<string, string> = { PROVIDER: targetProvider }
+    if (modelKey && !isBareProvider) changes[modelKey] = modelName
+    patchEnvFile(envPath, changes)
+    process.env['PROVIDER'] = targetProvider
+    if (modelKey && !isBareProvider) process.env[modelKey] = modelName
+
+    process.stdout.write(chalk.dim(`  Switching provider ${providerName} → ${targetProvider}…`))
+    try {
+      const newProvider = await reloadProvider()
+      engine.setProvider(newProvider)
+      modelManager.setModel(actualModel)
+      console.log(chalk.green(` ✓\n✓ Pinned to ${actualModel} (${targetProvider})`))
+      console.log(chalk.dim(`  .env updated: PROVIDER=${targetProvider}`))
+      return newProvider
+    } catch (err) {
+      console.log(chalk.red(` ✗\nFailed to switch: ${String(err)}`))
+      return
+    }
+  }
+
+  modelManager.setModel(modelName)
   console.log(chalk.green(`✓ Pinned to ${modelManager.getCurrentModel()}`))
+  return
+}
+
+const SESSIONS_DIR = path.join(os.homedir(), '.personal-ai', 'sessions')
+
+function sessionPath(name: string): string {
+  const safe = name.replace(/[^\w-]/g, '_')
+  return path.join(SESSIONS_DIR, `${safe}.json`)
+}
+
+function handleSaveCmd(parts: string[], context: ConversationContext): void {
+  if (context.messageCount === 0) { console.log(chalk.yellow('Nothing to save yet.')); return }
+  const name = parts[1] ?? `session-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`
+  try {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+    fs.writeFileSync(sessionPath(name), JSON.stringify({
+      messages: context.getMessages(),
+      savedAt:  new Date().toISOString(),
+    }, null, 2))
+    console.log(chalk.green(`✓ Saved ${context.messageCount} messages as "${name}"`))
+    console.log(chalk.dim(`  Restore with: /load ${name}`))
+  } catch (e) {
+    console.log(chalk.red(`Save failed: ${String(e)}`))
+  }
+}
+
+function handleLoadCmd(parts: string[], context: ConversationContext): void {
+  const name = parts[1]
+  if (!name) {
+    // List available sessions
+    try {
+      const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))
+      if (!files.length) { console.log(chalk.dim('No saved sessions. Save with /save [name].')); return }
+      console.log(chalk.bold('\nSaved sessions:'))
+      for (const f of files) console.log(`  ${chalk.cyan(f.replace(/\.json$/, ''))}`)
+      console.log(chalk.dim('\n  Load with: /load <name>\n'))
+    } catch { console.log(chalk.dim('No saved sessions.')) }
+    return
+  }
+  try {
+    const raw = JSON.parse(fs.readFileSync(sessionPath(name), 'utf8')) as { messages?: unknown }
+    if (!Array.isArray(raw.messages)) { console.log(chalk.red('Invalid session file.')); return }
+    context.restore(raw.messages as import('../providers/interface.js').Message[])
+    console.log(chalk.green(`✓ Restored "${name}" (${context.messageCount} messages)`))
+  } catch {
+    console.log(chalk.red(`Session "${name}" not found. Run /load to list.`))
+  }
 }
 
 async function handleCommand(
@@ -245,10 +373,6 @@ async function handleCommand(
       } else {
         console.log(chalk.dim(`Current model: ${provider.model}`))
       }
-      break
-    case '/model':
-      if (!modelManager) { console.log(chalk.dim(`Current model: ${provider.model}`)); break }
-      handleModelCmd(parts, modelManager)
       break
     case '/switch':
       handleSwitchCmd(parts)
@@ -286,9 +410,9 @@ async function handleCommand(
       if (!profileManager) { console.log(chalk.yellow('Profiles not loaded.')); break }
       handleProfileCmd(parts, profileManager)
       break
-    case '/coder':    profileManager && switchProfile('coder', profileManager);      break
-    case '/research': profileManager && switchProfile('researcher', profileManager); break
-    case '/tutor':    profileManager && switchProfile('tutor', profileManager);      break
+    case '/coder':    if (profileManager) switchProfile('coder', profileManager);      break
+    case '/research': if (profileManager) switchProfile('researcher', profileManager); break
+    case '/tutor':    if (profileManager) switchProfile('tutor', profileManager);      break
     case '/tools':
       if (!registry || registry.count() === 0) { console.log(chalk.dim('No tools registered.')); break }
       console.log(chalk.bold(`\nRegistered tools (${registry.count()}):`))
@@ -307,6 +431,13 @@ async function handleCommand(
         console.log(chalk.red(`Failed to start web: ${String(e)}`))
       }
       break
+    case '/save':
+      handleSaveCmd(parts, context)
+      break
+    case '/load':
+    case '/sessions':
+      handleLoadCmd(parts, context)
+      break
     case '/help':
       console.log(HELP)
       break
@@ -324,16 +455,20 @@ export async function startCLI(
   registry?: ToolRegistry,
   modelManager?: ModelManager,
   startWeb?: () => Promise<string>,
+  reloadProvider?: () => Promise<LLMProvider>,
+  envPath?: string,
 ): Promise<void> {
+  let activeProvider = provider
+
   console.log(BANNER)
 
-  if (provider.healthCheck) {
+  if (activeProvider.healthCheck) {
     process.stdout.write(chalk.dim('Connecting to provider…'))
-    const health = await provider.healthCheck()
+    const health = await activeProvider.healthCheck()
     if (health.ok) {
-      console.log(`\r${chalk.green('✓')} ${provider.name} / ${chalk.bold(health.model)} ${chalk.dim(`(${health.latencyMs}ms)`)}\n`)
+      console.log(`\r${chalk.green('✓')} ${activeProvider.name} / ${chalk.bold(health.model)} ${chalk.dim(`(${health.latencyMs}ms)`)}\n`)
     } else {
-      console.log(`\r${chalk.red('✗')} ${provider.name} unreachable: ${health.error ?? 'unknown'}`)
+      console.log(`\r${chalk.red('✗')} ${activeProvider.name} unreachable: ${health.error ?? 'unknown'}`)
       console.log(chalk.yellow('  Start Ollama or set PROVIDER env var.\n'))
     }
   }
@@ -362,7 +497,7 @@ export async function startCLI(
     const inK  = sessTokens.input
     const outK = sessTokens.output
     if (inK === 0 && outK === 0) return chalk.dim('No tokens used this session.')
-    const prices = PRICE[provider.name]
+    const prices = PRICE[activeProvider.name]
     if (!prices) {
       return chalk.cyan(`Session: ${inK.toLocaleString()} in / ${outK.toLocaleString()} out | `) + chalk.green('FREE (local)')
     }
@@ -393,9 +528,32 @@ export async function startCLI(
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
   const refreshPrompt = () => {
-    rl.setPrompt(makePrompt(provider, profileManager, modelManager))
+    rl.setPrompt(makePrompt(activeProvider, profileManager, modelManager))
     rl.prompt()
   }
+
+  // Memory visibility: show a dim note whenever a memory is auto-saved.
+  // Queued while a response is streaming — printing mid-stream splits output.
+  const pendingNotices: string[] = []
+  eventBus.on('memory_saved', ({ type, importance }) => {
+    pendingNotices.push(chalk.dim(`  💾 memory saved (${type}, importance ${importance}) — review with /memory list`))
+  })
+  const flushNotices = (): void => {
+    for (const n of pendingNotices.splice(0)) console.log(n)
+  }
+
+  // Security: dangerous tools (file_reader) need explicit per-call approval
+  if (registry) {
+    registry.setConfirmHandler(async (name, args) => {
+      const argStr = JSON.stringify(args)
+      const preview = argStr.length > 120 ? argStr.slice(0, 120) + '…' : argStr
+      const answer = await new Promise<string>(resolve =>
+        rl.question(chalk.yellow(`\n  ⚠ Allow ${name}(${preview})? [y/N] `), resolve),
+      )
+      return /^y(es)?$/i.test(answer.trim())
+    })
+  }
+
   refreshPrompt()
 
   let busy = false
@@ -416,8 +574,18 @@ export async function startCLI(
       process.exit(0)
     }
 
+    if (input.startsWith('/model') && modelManager && reloadProvider && envPath) {
+      const newProvider = await handleModelCmd(
+        input.split(' '), modelManager, engine,
+        activeProvider.name, envPath, reloadProvider,
+      )
+      if (newProvider) activeProvider = newProvider
+      refreshPrompt()
+      return
+    }
+
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), provider, context, memory, profileManager, registry, modelManager, startWeb, getCost)
+      await handleCommand(input.split(' '), activeProvider, context, memory, profileManager, registry, modelManager, startWeb, getCost)
       refreshPrompt()
       return
     }
@@ -443,38 +611,39 @@ export async function startCLI(
     }
 
     try {
+      const renderer = createStreamRenderer(s => process.stdout.write(s))
       for await (const chunk of engine.chat(input)) {
+        if (chunk.type !== 'done') clearSpinner()
         if (chunk.type === 'text') {
-          clearSpinner()
-          process.stdout.write(chunk.delta)
+          renderer.text(chunk.delta)
         } else if (chunk.type === 'tool_call') {
-          clearSpinner()
-          process.stdout.write(chalk.cyan(`\n  ⟳ ${chunk.name}…`))
+          renderer.toolCall(chunk.name)
         } else if (chunk.type === 'tool_result') {
-          process.stdout.write(chalk.green(' ✓\n'))
+          renderer.toolResult()
         } else if (chunk.type === 'model_switch') {
-          clearSpinner()
-          console.log(chalk.dim(`\n  ⟳ switching model: ${chunk.from} → ${chunk.to}`))
-          refreshPrompt()
+          // No refreshPrompt() here — redrawing the prompt mid-stream
+          // injects prompt text into the streamed response
+          renderer.modelSwitch(chunk.from, chunk.to)
         } else if (chunk.type === 'error') {
-          clearSpinner()
-          console.error(chalk.red(`\nError: ${friendlyError(chunk.message)}`))
+          renderer.error(friendlyError(chunk.message, activeProvider.name))
         } else if (chunk.type === 'done' && chunk.usage) {
           clearSpinner()
           sessTokens.input  += chunk.usage.input
           sessTokens.output += chunk.usage.output
-          console.log(chalk.dim(`\n  [${chunk.usage.input}in / ${chunk.usage.output}out tokens]`))
+          renderer.usage(chunk.usage.input, chunk.usage.output)
         }
       }
       clearSpinner()
+      renderer.finish()
     } catch (err) {
       clearSpinner()
       logger.error('cli', 'chat error', err)
       const msg = err instanceof Error ? err.message : String(err)
-      console.error(chalk.red(`\n${friendlyError(msg)}`))
+      console.error(chalk.red(`\n${friendlyError(msg, activeProvider.name)}`))
       console.error(chalk.dim('  Run /logs for details.'))
     }
     console.log()
+    flushNotices()
     busy = false
     rl.resume()
     refreshPrompt()
