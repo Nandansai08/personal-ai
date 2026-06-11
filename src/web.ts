@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
-  const { provider, profileManager, memory } = boot.core
+  const { provider, profileManager, memory, plugins } = boot.core
 
   watchProfiles(path.join(CONFIG, 'profiles.yaml'), p => profileManager.reload(p))
 
@@ -54,6 +54,7 @@ async function main(): Promise<void> {
     profileManager,
     registry: toolRegistry,
     modelManager,
+    plugins,
     personaPath: path.join(CONFIG, 'persona.yaml'),
     port: preferred,
   })

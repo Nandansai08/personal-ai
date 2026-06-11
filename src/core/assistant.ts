@@ -38,6 +38,12 @@ export interface AssistantOptions {
 
 type GetSystemPrompt = (memories: import('../memory/types.js').Memory[], toolsSection: string) => string
 
+/** Plugin prompt/response transforms (wired from the PluginManager's HookRunner). */
+export interface PromptHooks {
+  beforePrompt(prompt: string): Promise<string>
+  afterResponse(response: string): Promise<string>
+}
+
 export interface AssistantEngineOptions {
   provider:         LLMProvider
   getSystemPrompt:  GetSystemPrompt
@@ -46,6 +52,7 @@ export interface AssistantEngineOptions {
   profileManager?:  ProfileManager
   context?:         ConversationContext
   modelManager?:    ModelManager
+  promptHooks?:     PromptHooks
 }
 
 export class AssistantEngine {
@@ -57,6 +64,7 @@ export class AssistantEngine {
   private profileManager?:  ProfileManager
   private context?:         ConversationContext
   private modelManager?:    ModelManager
+  private promptHooks?:     PromptHooks
 
   constructor(opts: AssistantEngineOptions) {
     this.provider        = opts.provider
@@ -66,6 +74,7 @@ export class AssistantEngine {
     this.profileManager  = opts.profileManager
     this.context         = opts.context
     this.modelManager    = opts.modelManager
+    this.promptHooks     = opts.promptHooks
   }
 
   async *chat(userMessage: string, options?: AssistantOptions): AsyncGenerator<ChatChunk> {
@@ -110,7 +119,8 @@ export class AssistantEngine {
       ? this.registry.formatForPrompt()
       : ''
 
-    const systemPrompt = this.getSystemPrompt(memories, toolsSection)
+    let systemPrompt = this.getSystemPrompt(memories, toolsSection)
+    if (this.promptHooks) systemPrompt = await this.promptHooks.beforePrompt(systemPrompt)
 
     const nativeTools = (this.registry && !isGemma && this.provider.supportsToolUse)
       ? this.registry.formatNative()
@@ -163,8 +173,11 @@ export class AssistantEngine {
         if (assistantText) {
           // Strip XML tool-call blocks that some models output as text instead of function calls
           const TOOL_XML_RE = /<(memory|web_search|notes|tasks|calculator|file_reader|tool)>[\s\S]*?(<\/\1>|<\/args>)/g
-          const cleanText = assistantText.replace(TOOL_XML_RE, '').trim()
-          this.context?.addAssistant(cleanText || assistantText)
+          let cleanText = assistantText.replace(TOOL_XML_RE, '').trim() || assistantText
+          // Plugin afterResponse transforms apply to the stored response;
+          // streamed text has already been displayed.
+          if (this.promptHooks) cleanText = await this.promptHooks.afterResponse(cleanText)
+          this.context?.addAssistant(cleanText)
           this._saveMemoryCandidates(userMessage)
         }
         if (doneChunk) yield doneChunk

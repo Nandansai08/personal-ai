@@ -3,9 +3,21 @@
 import type { RegisteredTool, ToolDefinition, ToolResult, ConfirmHandler } from './types.js'
 import { eventBus } from '../core/events.js'
 
+/** Plugin tool-call observers (wired by the PluginManager's HookRunner). */
+export interface ToolCallObserver {
+  beforeToolCall(name: string, args: unknown): Promise<void>
+  afterToolCall(name: string, result: unknown): Promise<void>
+}
+
 export class ToolRegistry {
   private tools = new Map<string, RegisteredTool>()
   private confirmHandler: ConfirmHandler | undefined
+  private observer: ToolCallObserver | undefined
+
+  /** Install a tool-call observer (plugin hooks). Failures inside it must be handled by the observer. */
+  setObserver(observer: ToolCallObserver | undefined): void {
+    this.observer = observer
+  }
 
   /**
    * Install a confirmation handler for tools marked requiresConfirmation.
@@ -19,6 +31,11 @@ export class ToolRegistry {
   /** Register a tool. Overwrites if same name. */
   register(tool: RegisteredTool): void {
     this.tools.set(tool.definition.name, tool)
+  }
+
+  /** Remove a tool (used when a plugin is unloaded). */
+  unregister(name: string): boolean {
+    return this.tools.delete(name)
   }
 
   /** Returns true if tool exists. */
@@ -61,11 +78,14 @@ export class ToolRegistry {
       }
     }
 
+    if (this.observer) await this.observer.beforeToolCall(name, args)
+
     try {
       const result = await tool.execute(args)
       const durationMs = Date.now() - start
       eventBus.emit('tool_called', { name, args, durationMs })
       eventBus.emit('tool_result', { name, success: result.success, resultSize: JSON.stringify(result.data).length })
+      if (this.observer) await this.observer.afterToolCall(name, result.data)
       return result
     } catch (err) {
       const durationMs = Date.now() - start

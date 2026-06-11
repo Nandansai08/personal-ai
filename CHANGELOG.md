@@ -2,6 +2,21 @@
 
 All notable changes to PersonalAI.
 
+## [0.9.0]
+
+### Added
+- **Plugin system (M9)**: local extensions via `plugins/<name>/plugin.json` +
+  plain ESM `index.js` — custom tools auto-register into `/tools`; hooks
+  (`beforePrompt`, `afterResponse`, `beforeToolCall`, `afterToolCall`,
+  `memoryStored`, `sessionStarted/Ended`) run sandboxed with 2 s timeouts and
+  error boundaries so a failing plugin never crashes the assistant
+- `/plugins` CLI commands: list, health, reload, enable/disable (persisted)
+- Read-only `GET /api/plugins` for the web UI
+- Example plugins: `hello-world` (tool + hook), `timestamp`
+- `docs/PLUGINS.md` — architecture, lifecycle, hooks, best practices
+- Plugins complement MCP: plugins = local extensions, MCP (next milestone) =
+  external integrations
+
 ## [Unreleased]
 
 ### Security

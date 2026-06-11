@@ -105,12 +105,15 @@ Brave endpoint: GET https://api.search.brave.com/res/v1/web/search
 Last resort: DuckDuckGo Instant Answers if no search API keys are available.
 Serper free tier: 2500 queries/month. Brave free tier: 2000 queries/month.
 
-## Extension System
-MCP is the ONLY extension system — no custom plugin API.
-First-party tools use RegisteredTool (typed, tested, confirm-gated).
-MCP servers (M9) appear to the registry as namespaced RegisteredTools,
-inheriting the confirmation gate. Decision rationale: a second extension
-API duplicates MCP's job with zero ecosystem behind it.
+## Extension System (two-track)
+Plugins (src/plugins/) — LOCAL extensions: custom tools, hooks, user/community
+  extensions. Plain ESM js + plugin.json manifest in plugins/ or
+  ~/.personal-ai/plugins/. Sandboxed (2s hook timeout, error boundaries);
+  a failing plugin never crashes the assistant. See docs/PLUGINS.md.
+MCP (src/mcp/, M-next) — EXTERNAL integrations: remote tools, third-party
+  services over stdio. MCP servers will surface as namespaced RegisteredTools.
+First-party tools use RegisteredTool directly (typed, tested, confirm-gated).
+Rule: extension talks to an external service → MCP; otherwise → plugin.
 
 ## Memory (M2 = LIKE search, M8 = embeddings)
 M2: tokenized LIKE search (fallback path)
@@ -140,6 +143,7 @@ Done M5: openai-compatible→all providers→factory update→model-manager
 Done M6: web/server→web/client
 Done M7: setup wizard→polish
 Done M8: memory/embeddings→vector-store→intent→hybrid retrieval
-Planned M9: mcp/client→mcp/loader→wire into registry (MCP-only; plugin system removed)
-Planned M10: local document RAG (reuse embeddings infra)
-Planned M11: voice/stt→tts→wakeword
+Done M9: plugins/types→sandbox→loader→hooks→registry→manager→wire into bootstrap+cli+web
+Planned M10: mcp/client→mcp/loader→wire into registry
+Planned M11: local document RAG (reuse embeddings infra)
+Planned M12: voice/stt→tts→wakeword

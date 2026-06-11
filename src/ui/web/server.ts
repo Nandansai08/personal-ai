@@ -30,6 +30,7 @@ export interface WebServerOptions {
   profileManager: ProfileManager
   registry?:      ToolRegistry
   modelManager?:  ModelManager
+  plugins?:       import('../../plugins/manager.js').PluginManager
   personaPath:    string
   port?:          number
 }
@@ -44,7 +45,7 @@ function findFreePort(start: number): Promise<number> {
 }
 
 export async function createWebServer(opts: WebServerOptions): Promise<{ server: http.Server; port: number; token: string }> {
-  const { provider, memory, profileManager, registry, modelManager, personaPath } = opts
+  const { provider, memory, profileManager, registry, modelManager, plugins, personaPath } = opts
   const preferred = opts.port ?? parseInt(process.env['PORT'] ?? '3000', 10)
   const PORT = await findFreePort(preferred)
 
@@ -196,6 +197,11 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
         ? registry.getAll().map(t => ({ name: t.definition.name, description: t.definition.description }))
         : [],
     })
+  })
+
+  // Read-only plugin visibility (Settings → Plugins)
+  app.get('/api/plugins', (_req, res) => {
+    res.json(plugins ? plugins.health() : [])
   })
 
   app.get('/api/system', (_req, res) => {
