@@ -1,0 +1,7 @@
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "description": "Example plugin — greeting tool and a beforePrompt hook",
+  "main": "./index.js",
+  "enabled": true
+}

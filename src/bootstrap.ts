@@ -12,6 +12,7 @@ import { tasksTool } from './tools/tasks.js'
 import { calculatorTool } from './tools/calculator.js'
 import { fileReaderTool } from './tools/file-reader.js'
 import { createMemoryTool } from './tools/memory-tool.js'
+import { createPluginManager, type PluginManager } from './plugins/manager.js'
 import type { LLMProvider } from './providers/interface.js'
 import type { PersonaConfig } from './persona/types.js'
 
@@ -20,6 +21,7 @@ export interface AppCore {
   profileManager: ProfileManager
   memory:         LongTermMemory
   persona:        PersonaConfig
+  plugins:        PluginManager
 }
 
 export type AppCoreResult =
@@ -45,7 +47,20 @@ export async function createAppCore(configDir: string): Promise<AppCoreResult> {
   memory.setEmbedder(createOllamaEmbedder())
   registerDefaultTools(memory)
 
-  return { ok: true, core: { provider, profileManager, memory, persona } }
+  // Plugins: local extensions (custom tools + hooks). MCP remains the path
+  // for external integrations. A failing plugin never blocks startup.
+  const plugins = createPluginManager(toolRegistry, path.join(configDir, '..'))
+  const loaded = await plugins.loadAll()
+  toolRegistry.setObserver(plugins.hooks)
+  memory.setOnStored(m => { void plugins.hooks.memoryStored(m) })
+  if (loaded > 0) {
+    for (const p of plugins.list().filter(r => r.status === 'healthy')) {
+      console.log(`✓ Plugin: ${p.manifest.name} loaded`)
+    }
+    console.log(`\n${loaded} plugin${loaded === 1 ? '' : 's'} active\n`)
+  }
+
+  return { ok: true, core: { provider, profileManager, memory, persona, plugins } }
 }
 
 function registerDefaultTools(memory: LongTermMemory): void {

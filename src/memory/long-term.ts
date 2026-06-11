@@ -52,6 +52,7 @@ export class LongTermMemory {
   private db: Database.Database
   private vectors: VectorStore
   private embedder: Embedder | undefined
+  private onStored: ((memory: Memory) => void) | undefined
 
   constructor(dbPath = DB_PATH) {
     if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true })
@@ -67,6 +68,11 @@ export class LongTermMemory {
   /** Enable semantic indexing/retrieval. Without an embedder, keyword search is used. */
   setEmbedder(embedder: Embedder | undefined): void {
     this.embedder = embedder
+  }
+
+  /** Observer invoked with the full Memory after each new save (plugin memoryStored hook). */
+  setOnStored(cb: ((memory: Memory) => void) | undefined): void {
+    this.onStored = cb
   }
 
   private migrate(): void {
@@ -120,7 +126,9 @@ export class LongTermMemory {
     logger.debug('memory', `saved [${input.type}] importance=${importance}: ${input.content.slice(0, 60)}`)
 
     const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as MemoryRow
-    return rowToMemory(row)
+    const saved = rowToMemory(row)
+    this.onStored?.(saved)
+    return saved
   }
 
   /**

@@ -3,6 +3,7 @@ import readline from 'node:readline'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
 import type { AssistantEngine } from '../core/assistant.js'
 import type { LLMProvider } from '../providers/interface.js'
@@ -13,6 +14,7 @@ import type { ModelManager } from '../core/model-manager.js'
 import { logger } from '../core/logger.js'
 import { eventBus } from '../core/events.js'
 import { ConversationContext } from '../core/context.js'
+import type { PluginManager } from '../plugins/manager.js'
 
 import { PROVIDER_META, inferProvider } from '../providers/metadata.js'
 import { makeToolXmlStripper, patchEnvFile, friendlyError, createStreamRenderer } from './cli-helpers.js'
@@ -24,9 +26,17 @@ function modelEnvKeyFor(provider: string): string | undefined {
   return PROVIDER_META[provider as keyof typeof PROVIDER_META]?.modelEnvKey
 }
 
+function readVersion(): string {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url))
+    const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8')) as { version?: string }
+    return pkg.version ?? ''
+  } catch { return '' }
+}
+
 const BANNER = `
 ${chalk.cyan('╔═══════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim('v0.7.0')}                   ${chalk.cyan('║')}
+${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim(`v${readVersion()}`.padEnd(8))}                 ${chalk.cyan('║')}
 ${chalk.cyan('║')}  ${chalk.dim('Local-first. Any model.')}              ${chalk.cyan('║')}
 ${chalk.cyan('╚═══════════════════════════════════════╝')}
 `
@@ -57,6 +67,10 @@ const HELP = `
   ${chalk.cyan('/research')}              Switch to researcher profile
   ${chalk.cyan('/tutor')}                 Switch to tutor profile
   ${chalk.cyan('/tools')}                 List registered tools
+  ${chalk.cyan('/plugins')}               List plugins and status
+  ${chalk.cyan('/plugins reload')} [name] Reload plugins from disk
+  ${chalk.cyan('/plugins enable')} <name> Enable a plugin (persists)
+  ${chalk.cyan('/plugins disable')} <name> Disable a plugin (persists)
   ${chalk.cyan('/save')} [name]           Save conversation to a named session
   ${chalk.cyan('/load')} [name]           Restore a saved session (no name = list)
   ${chalk.cyan('/cost')}                  Show session token usage and estimated cost
@@ -295,6 +309,51 @@ async function handleModelCmd(
   return
 }
 
+async function handlePluginsCmd(parts: string[], plugins: PluginManager): Promise<void> {
+  const sub = parts[1]?.toLowerCase()
+
+  if (!sub || sub === 'list' || sub === 'health') {
+    const rows = plugins.health()
+    if (rows.length === 0) {
+      console.log(chalk.dim('No plugins installed. Drop one into plugins/ or ~/.personal-ai/plugins/.'))
+      return
+    }
+    const nameW = Math.max(16, ...rows.map(r => r.name.length + 2))
+    console.log(chalk.bold(`\n${'Plugin'.padEnd(nameW)}Status`))
+    console.log(chalk.dim('-'.repeat(nameW + 24)))
+    for (const r of rows) {
+      const color = r.status.startsWith('healthy') ? chalk.green : r.status === 'disabled' ? chalk.dim : chalk.red
+      console.log(`${r.name.padEnd(nameW)}${color(r.status)}${sub === 'health' ? chalk.dim(`  v${r.version}  tools:${r.tools} hooks:${r.hooks}${r.error ? `  ${r.error}` : ''}`) : ''}`)
+    }
+    console.log()
+    return
+  }
+
+  if (sub === 'reload') {
+    const name = parts[2]
+    if (name) {
+      const r = await plugins.reload(name)
+      console.log(r ? chalk.green(`✓ Reloaded ${name} (${r.status})`) : chalk.yellow(`Plugin "${name}" not found`))
+    } else {
+      for (const p of plugins.list()) await plugins.reload(p.manifest.name)
+      console.log(chalk.green(`✓ Reloaded ${plugins.list().length} plugin(s)`))
+    }
+    return
+  }
+
+  if (sub === 'enable' || sub === 'disable') {
+    const name = parts[2]
+    if (!name) { console.log(chalk.yellow(`Usage: /plugins ${sub} <name>`)); return }
+    const r = await plugins.setEnabled(name, sub === 'enable')
+    console.log(r
+      ? chalk.green(`✓ ${name} ${sub}d (${r.status})`)
+      : chalk.yellow(`Plugin "${name}" not found`))
+    return
+  }
+
+  console.log(chalk.yellow('Usage: /plugins [list|health|reload [name]|enable <name>|disable <name>]'))
+}
+
 const SESSIONS_DIR = path.join(os.homedir(), '.personal-ai', 'sessions')
 
 function sessionPath(name: string): string {
@@ -351,9 +410,14 @@ async function handleCommand(
   modelManager?: ModelManager,
   startWeb?: () => Promise<string>,
   getCost?: () => string,
+  plugins?: PluginManager,
 ): Promise<void> {
   const cmd = parts[0]?.toLowerCase()
   switch (cmd) {
+    case '/plugins':
+      if (!plugins) { console.log(chalk.yellow('Plugins not available.')); break }
+      await handlePluginsCmd(parts, plugins)
+      break
     case '/exit':
       console.log(chalk.dim('Goodbye.'))
       process.exit(0)
@@ -457,6 +521,7 @@ export async function startCLI(
   startWeb?: () => Promise<string>,
   reloadProvider?: () => Promise<LLMProvider>,
   envPath?: string,
+  plugins?: PluginManager,
 ): Promise<void> {
   let activeProvider = provider
 
@@ -585,7 +650,7 @@ export async function startCLI(
     }
 
     if (input.startsWith('/')) {
-      await handleCommand(input.split(' '), activeProvider, context, memory, profileManager, registry, modelManager, startWeb, getCost)
+      await handleCommand(input.split(' '), activeProvider, context, memory, profileManager, registry, modelManager, startWeb, getCost, plugins)
       refreshPrompt()
       return
     }

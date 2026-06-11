@@ -83,9 +83,13 @@ Tools implement `RegisteredTool` and register with the singleton
 `file_reader`) are gated through a `ConfirmHandler` — the CLI installs a y/N
 prompt. Tools never throw; they return `ToolResult { success, data, error }`.
 
-**Extension model: MCP only.** There is no custom plugin API. MCP servers
-(M9) will surface as namespaced `RegisteredTool`s in the same registry,
-inheriting the confirmation gate and result contract.
+**Extension model: two tracks.** Plugins (`src/plugins/`, see
+[PLUGINS.md](PLUGINS.md)) are local extensions — custom tools and hooks in
+plain ESM JavaScript, discovered from `plugins/` and `~/.personal-ai/plugins/`,
+sandboxed with timeouts and error boundaries so a failing plugin never takes
+the assistant down. MCP (planned) is the track for external integrations;
+MCP servers will surface as namespaced `RegisteredTool`s in the same
+registry, inheriting the confirmation gate and result contract.
 
 ## Memory
 

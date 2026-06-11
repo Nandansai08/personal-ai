@@ -1,0 +1,7 @@
+{
+  "name": "timestamp",
+  "version": "1.0.0",
+  "description": "Current ISO timestamp tool",
+  "main": "./index.js",
+  "enabled": true
+}

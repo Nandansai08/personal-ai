@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
-  const { provider, profileManager, memory, persona } = boot.core
+  const { provider, profileManager, memory, persona, plugins } = boot.core
   const context = new ConversationContext()
 
   let currentPersona = persona
@@ -81,13 +81,17 @@ async function main(): Promise<void> {
   const engine = new AssistantEngine({
     provider, getSystemPrompt, memory,
     registry: toolRegistry, profileManager, context, modelManager,
+    promptHooks: plugins.hooks,
   })
+
+  void plugins.hooks.sessionStarted()
 
   process.on('SIGINT', () => {
     eventBus.emit('session_ended', {
       messageCount:  context.messageCount,
       toolCallCount: context.getToolCallCount(),
     })
+    void plugins.hooks.sessionEnded()
     memory.close()
     console.log('\nBye.')
     process.exit(0)
@@ -108,6 +112,7 @@ async function main(): Promise<void> {
         profileManager,
         registry: toolRegistry,
         modelManager,
+        plugins,
         personaPath: path.join(CONFIG, 'persona.yaml'),
         port: preferred,
       })
@@ -123,7 +128,7 @@ async function main(): Promise<void> {
     return createProvider()
   }
 
-  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn, reloadProvider, envPath)
+  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn, reloadProvider, envPath, plugins)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
