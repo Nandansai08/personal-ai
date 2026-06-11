@@ -13,6 +13,7 @@ import { calculatorTool } from './tools/calculator.js'
 import { fileReaderTool } from './tools/file-reader.js'
 import { createMemoryTool } from './tools/memory-tool.js'
 import { createPluginManager, type PluginManager } from './plugins/manager.js'
+import { McpManager, mcpConfigPath, readMcpConfig } from './mcp/loader.js'
 import type { LLMProvider } from './providers/interface.js'
 import type { PersonaConfig } from './persona/types.js'
 
@@ -22,6 +23,7 @@ export interface AppCore {
   memory:         LongTermMemory
   persona:        PersonaConfig
   plugins:        PluginManager
+  mcp:            McpManager
 }
 
 export type AppCoreResult =
@@ -60,7 +62,24 @@ export async function createAppCore(configDir: string): Promise<AppCoreResult> {
     console.log(`\n${loaded} plugin${loaded === 1 ? '' : 's'} active\n`)
   }
 
-  return { ok: true, core: { provider, profileManager, memory, persona, plugins } }
+  // MCP: external integrations over stdio. Only activates when mcp.json
+  // exists (config/ or ~/.personal-ai/). Tools register as mcp_<server>_<name>
+  // with the confirmation gate — external tools always confirm.
+  const mcp = new McpManager()
+  const mcpFile = mcpConfigPath(configDir)
+  if (mcpFile) {
+    const mcpConfig = readMcpConfig(mcpFile)
+    if (mcpConfig) {
+      const statuses = await mcp.loadAll(mcpConfig, toolRegistry)
+      for (const s of statuses) {
+        console.log(s.status === 'connected'
+          ? `✓ MCP: ${s.name} connected (${s.tools} tools)`
+          : `⚠ MCP: ${s.name} failed — ${s.error}`)
+      }
+    }
+  }
+
+  return { ok: true, core: { provider, profileManager, memory, persona, plugins, mcp } }
 }
 
 function registerDefaultTools(memory: LongTermMemory): void {

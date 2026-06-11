@@ -78,6 +78,12 @@ describe('web server auth', () => {
     expect(await res.json()).toEqual([])
   })
 
+  it('serves /api/mcp (empty array when no manager wired)', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/mcp?token=${token}`)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
   it('serves static client without token', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/`)
     expect(res.status).toBe(200)

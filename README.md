@@ -38,6 +38,7 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 - **Persistent memory** — SQLite-backed long-term memory; facts, preferences, context, and episodic entries survive restarts
 - **6 built-in tools** — web search (Serper → Brave → DuckDuckGo), notes, tasks, calculator, file reader, memory save
 - **Plugin system** — drop a folder with `plugin.json` + `index.js` into `plugins/` to add tools and hooks; sandboxed, hot-reloadable, no build step ([docs](docs/PLUGINS.md))
+- **MCP client** — connect any Model Context Protocol server via `config/mcp.json`; tools register automatically and always confirm before running ([docs](docs/MCP.md))
 - **Streaming output** — token-by-token display with animated spinner and tool call progress indicators
 - **Hot-reload config** — edit `persona.yaml` or `profiles.yaml` while running; changes apply to the next message
 - **Observability** — every action emits typed events; daily log files at `~/.personal-ai/logs/`
@@ -434,7 +435,7 @@ Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launc
 | v0.7 | Done | Setup wizard, `/cost` tracking, model-pin for all providers, friendly errors, session save |
 | v0.8 | Done | Security hardening, semantic memory (local embeddings via Ollama), session save/load, npm packaging |
 | v0.9 | Done | Plugin system — local tools + hooks, sandboxed, hot-reload ([docs/PLUGINS.md](docs/PLUGINS.md)) |
-| v1.0 | Planned | MCP support — connect any MCP server over stdio |
+| v1.0 | Done | MCP support — connect any MCP server over stdio, tools confirm-gated ([docs/MCP.md](docs/MCP.md)) |
 | v1.1 | Planned | Local document RAG — point the existing embeddings at your files |
 | v1.2 | Planned | Voice — STT + TTS + wake word |
 

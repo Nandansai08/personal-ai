@@ -31,6 +31,7 @@ export interface WebServerOptions {
   registry?:      ToolRegistry
   modelManager?:  ModelManager
   plugins?:       import('../../plugins/manager.js').PluginManager
+  mcp?:           import('../../mcp/loader.js').McpManager
   personaPath:    string
   port?:          number
 }
@@ -45,7 +46,7 @@ function findFreePort(start: number): Promise<number> {
 }
 
 export async function createWebServer(opts: WebServerOptions): Promise<{ server: http.Server; port: number; token: string }> {
-  const { provider, memory, profileManager, registry, modelManager, plugins, personaPath } = opts
+  const { provider, memory, profileManager, registry, modelManager, plugins, mcp, personaPath } = opts
   const preferred = opts.port ?? parseInt(process.env['PORT'] ?? '3000', 10)
   const PORT = await findFreePort(preferred)
 
@@ -119,10 +120,15 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
   })
 
   app.get('/api/memories', (req, res) => {
-    if (!memory) { res.json([]); return }
-    const q = req.query['q'] as string | undefined
-    const results = q ? memory.search(q, 20) : memory.getRecent(20)
-    res.json(results)
+    void (async () => {
+      if (!memory) { res.json([]); return }
+      const q = req.query['q'] as string | undefined
+      const semantic = req.query['mode'] === 'semantic'
+      const results = q
+        ? (semantic ? await memory.searchSemantic(q, 20) : memory.search(q, 20))
+        : memory.getRecent(20)
+      res.json(results)
+    })()
   })
 
   app.post('/api/memories', (req, res) => {
@@ -190,11 +196,17 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
   app.get('/api/stats', (_req, res) => {
     res.json({
       memories: memory ? memory.getStats() : null,
+      memoryIndex: memory ? memory.getIndexStats() : null,
       model:    modelManager
         ? modelManager.getStats()
         : { current: provider.model, mode: 'manual', config: {} },
       tools: registry
-        ? registry.getAll().map(t => ({ name: t.definition.name, description: t.definition.description }))
+        ? registry.getAll().map(t => ({
+            name: t.definition.name,
+            description: t.definition.description,
+            requiresConfirmation: t.requiresConfirmation === true,
+            source: t.definition.name.startsWith('mcp_') ? 'mcp' : 'builtin',
+          }))
         : [],
     })
   })
@@ -202,6 +214,11 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
   // Read-only plugin visibility (Settings → Plugins)
   app.get('/api/plugins', (_req, res) => {
     res.json(plugins ? plugins.health() : [])
+  })
+
+  // Read-only MCP server visibility (Settings → MCP)
+  app.get('/api/mcp', (_req, res) => {
+    res.json(mcp ? mcp.list() : [])
   })
 
   app.get('/api/system', (_req, res) => {
@@ -262,6 +279,26 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
       isGemma3Model(modelManager ? modelManager.getCurrentModel() : provider.model),
     )
 
+    const send = (data: unknown): void => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data))
+    }
+
+    // Tool confirmation over the socket: send confirm_request, wait for the
+    // client's confirm_response. No answer within 60 s = denied.
+    let confirmSeq = 0
+    const pendingConfirms = new Map<number, (approved: boolean) => void>()
+    const confirmToolCall = (name: string, args: unknown): Promise<boolean> =>
+      new Promise<boolean>(resolve => {
+        const id = ++confirmSeq
+        const timer = setTimeout(() => {
+          pendingConfirms.delete(id)
+          resolve(false)
+        }, 60_000)
+        timer.unref?.()
+        pendingConfirms.set(id, approved => { clearTimeout(timer); resolve(approved) })
+        send({ type: 'confirm_request', id, name, args })
+      })
+
     const engine = new AssistantEngine({
       provider,
       getSystemPrompt: makeSystemPrompt,
@@ -270,19 +307,25 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
       profileManager,
       context,
       modelManager,
+      confirmToolCall,
     })
-
-    const send = (data: unknown): void => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data))
-    }
 
     ws.on('message', (raw) => {
       void (async () => {
-        let msg: { type: string; content?: string; name?: string }
+        let msg: { type: string; content?: string; name?: string; id?: number; approved?: boolean }
         try {
           msg = JSON.parse(raw.toString()) as typeof msg
         } catch {
           send({ type: 'error', message: 'invalid JSON' })
+          return
+        }
+
+        if (msg.type === 'confirm_response' && typeof msg.id === 'number') {
+          const resolver = pendingConfirms.get(msg.id)
+          if (resolver) {
+            pendingConfirms.delete(msg.id)
+            resolver(msg.approved === true)
+          }
           return
         }
 
@@ -309,6 +352,8 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
     })
 
     ws.on('close', () => {
+      for (const resolve of pendingConfirms.values()) resolve(false)
+      pendingConfirms.clear()
       logger.debug('web', `WS disconnected (${context.messageCount} messages)`)
       const sessDir = path.join(
         process.env['HOME'] ?? process.env['USERPROFILE'] ?? '',

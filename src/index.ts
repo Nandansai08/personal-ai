@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
-  const { provider, profileManager, memory, persona, plugins } = boot.core
+  const { provider, profileManager, memory, persona, plugins, mcp } = boot.core
   const context = new ConversationContext()
 
   let currentPersona = persona
@@ -92,6 +92,7 @@ async function main(): Promise<void> {
       toolCallCount: context.getToolCallCount(),
     })
     void plugins.hooks.sessionEnded()
+    mcp.closeAll()
     memory.close()
     console.log('\nBye.')
     process.exit(0)
@@ -113,6 +114,7 @@ async function main(): Promise<void> {
         registry: toolRegistry,
         modelManager,
         plugins,
+        mcp,
         personaPath: path.join(CONFIG, 'persona.yaml'),
         port: preferred,
       })
@@ -128,7 +130,7 @@ async function main(): Promise<void> {
     return createProvider()
   }
 
-  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn, reloadProvider, envPath, plugins)
+  await startCLI(provider, engine, context, memory, profileManager, toolRegistry, modelManager, startWebFn, reloadProvider, envPath, plugins, mcp)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

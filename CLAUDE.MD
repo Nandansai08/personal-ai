@@ -144,6 +144,6 @@ Done M6: web/server→web/client
 Done M7: setup wizard→polish
 Done M8: memory/embeddings→vector-store→intent→hybrid retrieval
 Done M9: plugins/types→sandbox→loader→hooks→registry→manager→wire into bootstrap+cli+web
-Planned M10: mcp/client→mcp/loader→wire into registry
+Done M10: mcp/client (stdio JSON-RPC, no SDK)→mcp/loader→confirm-gated registry tools
 Planned M11: local document RAG (reuse embeddings infra)
 Planned M12: voice/stt→tts→wakeword

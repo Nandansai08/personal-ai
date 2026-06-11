@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     console.error(`Failed to initialize provider: ${boot.error}`)
     process.exit(1)
   }
-  const { provider, profileManager, memory, plugins } = boot.core
+  const { provider, profileManager, memory, plugins, mcp } = boot.core
 
   watchProfiles(path.join(CONFIG, 'profiles.yaml'), p => profileManager.reload(p))
 
@@ -55,6 +55,7 @@ async function main(): Promise<void> {
     registry: toolRegistry,
     modelManager,
     plugins,
+    mcp,
     personaPath: path.join(CONFIG, 'persona.yaml'),
     port: preferred,
   })
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
   console.log(`  (URL includes your session token — don't share it)\n`)
 
   process.on('SIGINT', () => {
+    mcp.closeAll()
     memory.close()
     console.log('\nBye.')
     process.exit(0)

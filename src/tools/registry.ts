@@ -56,8 +56,10 @@ export class ToolRegistry {
   /**
    * Execute a tool by name. Never throws — returns error ToolResult on failure.
    * Emits tool_called and tool_result events with timing.
+   * `confirm` overrides the global confirm handler for this call (used by the
+   * web server to route confirmations to the right WebSocket connection).
    */
-  async dispatch(name: string, args: unknown): Promise<ToolResult> {
+  async dispatch(name: string, args: unknown, confirm?: ConfirmHandler): Promise<ToolResult> {
     const tool = this.tools.get(name)
     const start = Date.now()
 
@@ -69,8 +71,9 @@ export class ToolRegistry {
       return result
     }
 
-    if (tool.requiresConfirmation && this.confirmHandler) {
-      const approved = await this.confirmHandler(name, args)
+    const confirmHandler = confirm ?? this.confirmHandler
+    if (tool.requiresConfirmation && confirmHandler) {
+      const approved = await confirmHandler(name, args)
       if (!approved) {
         eventBus.emit('tool_called', { name, args, durationMs: 0 })
         eventBus.emit('tool_result', { name, success: false, resultSize: 0 })

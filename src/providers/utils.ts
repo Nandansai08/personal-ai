@@ -13,6 +13,13 @@ export function buildOAIMessages(messages: Message[], systemPrompt?: string): OA
   if (systemPrompt) out.push({ role: 'system', content: systemPrompt })
   for (const m of messages) {
     if (m.role === 'system') continue
+    if (m.role === 'tool') {
+      // OpenAI-style APIs reject role:'tool' without a preceding assistant
+      // tool_calls message (which we don't thread). Downgrade to user text —
+      // the content already carries [TOOL OUTPUT] framing.
+      out.push({ role: 'user', content: m.content })
+      continue
+    }
     out.push({
       role:          m.role,
       content:       m.content,

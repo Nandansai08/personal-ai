@@ -20,7 +20,9 @@ function buildAnthropicMessages(messages: import('./interface.js').Message[]): A
   for (const m of messages) {
     if (m.role === 'system') continue
     if (m.role === 'tool') {
-      result.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id ?? '', content: m.content }] })
+      // tool_result blocks require a paired tool_use in the prior assistant
+      // message, which we don't thread — plain user text is the safe mapping.
+      result.push({ role: 'user', content: m.content })
     } else {
       result.push({ role: m.role as 'user' | 'assistant', content: m.content })
     }

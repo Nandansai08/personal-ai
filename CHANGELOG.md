@@ -2,6 +2,32 @@
 
 All notable changes to PersonalAI.
 
+## [1.0.0]
+
+### Added
+- **MCP client (v1.0)**: connect Model Context Protocol servers over stdio via
+  `config/mcp.json` — minimal JSON-RPC client (no SDK), tools register as
+  `mcp_<server>_<tool>` and **always require confirmation**; failed servers
+  are reported and skipped; `/mcp` lists servers + tools
+- **Web tool-confirmation UI**: dangerous tools (file_reader, all MCP tools)
+  show an inline Allow/Deny card in the browser; no response within 60 s or a
+  disconnect = denied
+- **Web UI V2**: memory vault wired to the real engines — Keyword/Semantic
+  search toggle (`?mode=semantic`), live embedder badge (shows nomic-embed-text
+  + indexed count), per-memory archive button; Settings gains an MCP Servers
+  panel; tool registry rows show MCP and CONFIRM badges
+- `GET /api/mcp` (read-only server status), `/api/memories?mode=semantic`,
+  `/api/stats` now includes `memoryIndex` and per-tool confirmation/source
+- `docs/MCP.md`, `config/mcp.json.example`
+
+### Changed
+- Tool results stored with `role: 'tool'` (was user-role text); providers
+  that can't express orphan tool messages (OpenAI-style, Anthropic) downgrade
+  them safely to user text with the `[TOOL OUTPUT]` framing intact
+- `cli.ts` split: slash-command handlers moved to `src/ui/commands.ts`
+- Per-session tool confirmation: web connections confirm over their own
+  socket instead of a global handler
+
 ## [0.9.0]
 
 ### Added

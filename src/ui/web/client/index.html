@@ -976,7 +976,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <div class="topbar" style="border-bottom:none;padding-bottom:0">
         <span class="topbar-title">Vault Index</span>
         <div style="flex:1"></div>
-        <span style="font-size:11px;color:var(--text-muted);background:var(--green-dim);color:var(--green);padding:3px 9px;border-radius:4px;border:1px solid rgba(34,197,94,.22);font-weight:600">ENGINE: M2</span>
+        <span id="vault-engine-badge" style="font-size:11px;color:var(--text-muted);background:var(--green-dim);color:var(--green);padding:3px 9px;border-radius:4px;border:1px solid rgba(34,197,94,.22);font-weight:600">ENGINE: —</span>
       </div>
       <div id="memory-stats-bar" style="border-top:1px solid var(--border-subtle)">
         <div class="mem-stat-card">
@@ -986,7 +986,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div>
         <div class="mem-stat-card">
           <div class="mem-stat-label">Search Engine</div>
-          <div class="mem-stat-val" style="font-size:14px;padding-top:3px" id="vault-engine">M2</div>
+          <div class="mem-stat-val" style="font-size:14px;padding-top:3px" id="vault-engine">Keyword</div>
           <div class="mem-stat-sub">LIKE search</div>
         </div>
         <div class="mem-stat-card">
@@ -1010,8 +1010,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div id="memory-search-bar">
             <input id="vault-search" type="search" placeholder="Search memories…" autocomplete="off">
             <div class="engine-toggle">
-              <button class="engine-btn active" data-engine="M2">M2</button>
-              <button class="engine-btn" data-engine="M10">M10</button>
+              <button class="engine-btn active" data-engine="keyword">Keyword</button>
+              <button class="engine-btn" data-engine="semantic">Semantic</button>
             </div>
           </div>
           <div id="vault-list"></div>
@@ -1136,6 +1136,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <span class="settings-section-title">Plugins</span>
           </div>
           <div class="settings-section-body" id="plugins-body">
+            <div style="font-size:12px;color:var(--text-muted)">Loading…</div>
+          </div>
+        </div>
+
+        <!-- MCP servers (read-only) -->
+        <div class="settings-section full-width">
+          <div class="settings-section-header">
+            <span class="settings-section-title">MCP Servers</span>
+          </div>
+          <div class="settings-section-body" id="mcp-body">
             <div style="font-size:12px;color:var(--text-muted)">Loading…</div>
           </div>
         </div>
@@ -1469,6 +1479,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
   // ── Chunk handler ──────────────────────────────────────────────────────────
   function handleChunk(chunk) {
+    if (chunk.type === 'confirm_request') {
+      // Dangerous tool wants to run — inline approve/deny card. No response
+      // within 60s = denied server-side.
+      removeSkeleton();
+      if (!state.streamingBubble) { state.streamingBubble = startAssistantBubble(); accText = ''; }
+      const card = document.createElement('div');
+      card.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid #b4540a;border-radius:8px;background:rgba(180,84,10,.08)';
+      const argStr = JSON.stringify(chunk.args || {});
+      card.innerHTML =
+        `<div style="font-size:12px;margin-bottom:8px">⚠ Allow tool <code>${esc(chunk.name)}</code>?` +
+        `<div style="font-family:ui-monospace,monospace;font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">${esc(argStr.slice(0, 200))}</div></div>` +
+        `<button class="confirm-allow" style="margin-right:8px;padding:4px 14px;border-radius:6px;border:1px solid #16a34a;background:rgba(22,163,74,.15);color:#4ade80;cursor:pointer;font-size:12px">Allow</button>` +
+        `<button class="confirm-deny" style="padding:4px 14px;border-radius:6px;border:1px solid var(--border-subtle);background:transparent;color:var(--text-dim);cursor:pointer;font-size:12px">Deny</button>`;
+      const respond = approved => {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          state.ws.send(JSON.stringify({ type: 'confirm_response', id: chunk.id, approved }));
+        }
+        card.innerHTML = `<div style="font-size:12px;color:var(--text-muted)">${approved ? '✓ Allowed' : '✗ Denied'} ${esc(chunk.name)}</div>`;
+      };
+      card.querySelector('.confirm-allow').addEventListener('click', () => respond(true));
+      card.querySelector('.confirm-deny').addEventListener('click', () => respond(false));
+      state.streamingBubble.appendChild(card);
+      scrollBottom();
+      return;
+    }
     if (chunk.type === 'text') {
       removeSkeleton();
       if (!state.streamingBubble) {
@@ -1668,7 +1703,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     $nav.classList.remove('open');
     $overlay.classList.remove('open');
     // Lazy-load data for each view
-    if (name === 'memory') loadVaultMemories();
+    if (name === 'memory') { loadVaultMemories(); refreshVaultEngine(); }
     if (name === 'research') loadResearchMemories();
     if (name === 'settings') loadSettingsData();
   }
@@ -1749,7 +1784,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
   // ── Vault / Memory view ────────────────────────────────────────────────────
   function loadVaultMemories(q) {
-    const url = q ? `/api/memories?q=${encodeURIComponent(q)}` : '/api/memories';
+    const semantic = state.vaultEngine === 'semantic';
+    const url = q
+      ? `/api/memories?q=${encodeURIComponent(q)}${semantic ? '&mode=semantic' : ''}`
+      : '/api/memories';
     fetch(url).then(r => r.json()).then(mems => {
       const list = $('vault-list');
       list.innerHTML = '';
@@ -1766,11 +1804,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         el.className = 'vault-item';
         const relevance = q ? ((1 - i * 0.05).toFixed(2)) : '1.00';
         const time = m.createdAt ? relativeTime(m.createdAt) : '—';
-        el.innerHTML = `<span class="vault-relevance">${relevance}</span><div class="vault-item-body"><div class="vault-item-type">${esc(m.type)}</div><div class="vault-item-text">${esc((m.content||'').slice(0,80))}${(m.content||'').length>80?'…':''}</div><div class="vault-item-time">${time}</div></div>`;
+        el.innerHTML = `<span class="vault-relevance">${relevance}</span><div class="vault-item-body"><div class="vault-item-type">${esc(m.type)}</div><div class="vault-item-text">${esc((m.content||'').slice(0,80))}${(m.content||'').length>80?'…':''}</div><div class="vault-item-time">${time}</div></div>` +
+          `<button class="vault-archive" title="Archive" style="margin-left:auto;align-self:center;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:4px 8px;flex-shrink:0">✕</button>`;
         el.addEventListener('click', () => {
           if (state.activeView !== 'chat') switchView('chat');
           $input.value += (($input.value && !$input.value.endsWith(' ')) ? ' ' : '') + (m.content||'');
           $input.focus(); autoResize();
+        });
+        el.querySelector('.vault-archive').addEventListener('click', ev => {
+          ev.stopPropagation();
+          fetch(`/api/memories/${encodeURIComponent(m.id)}`, { method: 'DELETE' })
+            .then(() => { toast('Memory archived'); loadVaultMemories(q); })
+            .catch(() => toast('Archive failed'));
         });
         list.appendChild(el);
       });
@@ -1795,9 +1840,29 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.vaultEngine = btn.dataset.engine;
-      $('vault-engine').textContent = btn.dataset.engine;
+      $('vault-engine').textContent = btn.dataset.engine === 'semantic' ? 'Semantic' : 'Keyword';
+      const q = $('vault-search').value.trim();
+      loadVaultMemories(q || null);
     });
   });
+
+  // Live engine status: shows the actual embedder when the semantic index is on
+  function refreshVaultEngine() {
+    fetch('/api/stats').then(r => r.json()).then(data => {
+      const idx = data.memoryIndex;
+      const badge = $('vault-engine-badge');
+      if (idx && idx.embedder) {
+        if (badge) badge.textContent = 'ENGINE: ' + idx.embedder;
+        const sub = document.querySelector('#vault-engine + .mem-stat-sub');
+        if (sub) sub.textContent = `${idx.indexed} embedded`;
+      } else {
+        if (badge) badge.textContent = 'ENGINE: keyword';
+        const sub = document.querySelector('#vault-engine + .mem-stat-sub');
+        if (sub) sub.textContent = 'LIKE search';
+      }
+    }).catch(() => {});
+  }
+  refreshVaultEngine();
 
   window.exportMemories = function() {
     fetch('/api/memories').then(r => r.json()).then(mems => {
@@ -1895,10 +1960,30 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       const body = $('tools-registry-body');
       if (!tools.length) { body.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No tools registered.</div>'; return; }
       body.innerHTML = tools.map(t => `
-        <div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-subtle)">
-          <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:#c4b5fd;width:130px;flex-shrink:0">${esc(t.name)}</span>
+        <div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle)">
+          <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:#c4b5fd;width:160px;flex-shrink:0">${esc(t.name)}</span>
+          ${t.source === 'mcp' ? '<span style="font-size:9.5px;font-weight:700;color:#60a5fa;border:1px solid rgba(96,165,250,.35);border-radius:4px;padding:1px 5px;flex-shrink:0">MCP</span>' : ''}
+          ${t.requiresConfirmation ? '<span style="font-size:9.5px;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,.35);border-radius:4px;padding:1px 5px;flex-shrink:0" title="Asks before each run">CONFIRM</span>' : ''}
           <span style="font-size:12px;color:var(--text-dim)">${esc(t.description)}</span>
         </div>`).join('');
+    }).catch(() => {});
+
+    // MCP servers (read-only)
+    fetch('/api/mcp').then(r => r.json()).then(servers => {
+      const body = $('mcp-body');
+      if (!Array.isArray(servers) || !servers.length) {
+        body.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">No MCP servers configured. Create config/mcp.json — see docs/MCP.md.</div>';
+        return;
+      }
+      body.innerHTML = servers.map(s => {
+        const ok = s.status === 'connected';
+        return `
+        <div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle)">
+          <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:#c4b5fd;width:160px;flex-shrink:0">${esc(s.name)}</span>
+          <span style="font-size:11px;color:${ok ? 'var(--green, #4ade80)' : 'var(--red, #f87171)'};width:110px;flex-shrink:0">● ${esc(s.status)}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${ok ? `${Number(s.tools) || 0} tools` : esc(s.error || '')}</span>
+        </div>`;
+      }).join('');
     }).catch(() => {});
 
     // Plugins (read-only)
