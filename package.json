@@ -56,5 +56,13 @@
     "bin",
     "config",
     ".env.example"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nandansai08/personal-ai.git"
+  },
+  "homepage": "https://github.com/Nandansai08/personal-ai#readme",
+  "bugs": {
+    "url": "https://github.com/Nandansai08/personal-ai/issues"
+  }
 }
