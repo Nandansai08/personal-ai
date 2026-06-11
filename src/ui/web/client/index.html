@@ -1149,12 +1149,29 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   }
   const AUTH_TOKEN = sessionStorage.getItem('pai_token') || '';
 
+  // Auth-failure banner: a bookmarked URL without ?token= means every API
+  // call 401s and panels silently stay empty — tell the user what to do.
+  let authBannerShown = false;
+  function showAuthBanner() {
+    if (authBannerShown) return;
+    authBannerShown = true;
+    const b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#7f1d1d;color:#fff;' +
+      'padding:10px 16px;font:13px system-ui;text-align:center';
+    b.textContent = 'Session token missing or expired. Restart PersonalAI (or run /web in the CLI) and open the printed URL — it contains your access token.';
+    document.body.prepend(b);
+  }
+
   const _fetch = window.fetch.bind(window);
   window.fetch = function(input, init) {
     const url = typeof input === 'string' ? input : input.url;
     if (url.startsWith('/api')) {
       init = init || {};
       init.headers = Object.assign({}, init.headers, { 'Authorization': 'Bearer ' + AUTH_TOKEN });
+      return _fetch(input, init).then(res => {
+        if (res.status === 401) showAuthBanner();
+        return res;
+      });
     }
     return _fetch(input, init);
   };

@@ -31,8 +31,12 @@ All notable changes to PersonalAI.
 
 ### Changed
 - `ts-node` → `tsx` (works on modern Node)
-- vitest 1.x → 4.x (clears all npm audit findings)
+- vitest 1.x → 3.2.6 (clears all npm audit findings; 4.x reverted — its rolldown
+  dependency breaks `npm ci` lock integrity)
 - `uuid` dependency replaced by `node:crypto.randomUUID`
+- Plugin system removed before it shipped — MCP (v0.9) is the only extension
+  system; first-party tools keep the internal typed registry
+- Dead stub directories (`src/plugins/`, `src/voice/`) removed from the package
 - Provider metadata centralized in `src/providers/metadata.ts`
 - `AssistantEngine` constructor takes an options object
 - Tool results truncated at 8 KB; conversation trimmed to ~24 K char budget

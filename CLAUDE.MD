@@ -105,20 +105,18 @@ Brave endpoint: GET https://api.search.brave.com/res/v1/web/search
 Last resort: DuckDuckGo Instant Answers if no search API keys are available.
 Serper free tier: 2500 queries/month. Brave free tier: 2000 queries/month.
 
-## Plugin System (src/plugins/)
-Each plugin exports PersonalAIPlugin interface:
-  name: string
-  description: string
-  tools: RegisteredTool[]
-  setup?(): Promise<void>
+## Extension System
+MCP is the ONLY extension system — no custom plugin API.
+First-party tools use RegisteredTool (typed, tested, confirm-gated).
+MCP servers (M9) appear to the registry as namespaced RegisteredTools,
+inheriting the confirmation gate. Decision rationale: a second extension
+API duplicates MCP's job with zero ecosystem behind it.
 
-Plugins live in plugins/ directory, auto-discovered by loader.
-Plugin != MCP server. Plugins are internal, typed, tested.
-MCP = external servers over stdio.
-
-## Memory (M2 = LIKE search, M10 = embeddings)
-M2: SQLite LIKE search — good enough for Phase 1
-M10: sqlite-vec for semantic search — added post v1.0
+## Memory (M2 = LIKE search, M8 = embeddings)
+M2: tokenized LIKE search (fallback path)
+M8: local embeddings (nomic-embed-text via Ollama) + hybrid retrieval
+    (70% similarity / 20% importance / 10% recency); brute-force cosine,
+    swap for sqlite-vec only if it ever becomes a bottleneck
 Never delete memories. Archive only.
 
 ## System Prompt Rules
@@ -141,7 +139,7 @@ Done M4: tools/types→parser→registry→all tools→wire into assistant
 Done M5: openai-compatible→all providers→factory update→model-manager
 Done M6: web/server→web/client
 Done M7: setup wizard→polish
-Planned M8: plugins/interface→loader→weather+github+calendar plugins
-Planned M9: mcp/loader→mcp/client→wire into index
-Planned M10: memory/embeddings→vector-store→upgrade search
+Done M8: memory/embeddings→vector-store→intent→hybrid retrieval
+Planned M9: mcp/client→mcp/loader→wire into registry (MCP-only; plugin system removed)
+Planned M10: local document RAG (reuse embeddings infra)
 Planned M11: voice/stt→tts→wakeword

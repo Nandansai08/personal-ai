@@ -404,8 +404,8 @@ Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launc
 | v0.6 | Done | Web UI — Express + WebSocket streaming chat in browser |
 | v0.7 | Done | Setup wizard, `/cost` tracking, model-pin for all providers, friendly errors, session save |
 | v0.8 | Done | Security hardening, semantic memory (local embeddings via Ollama), session save/load, npm packaging |
-| v0.9 | Planned | MCP support — connect any MCP server over stdio |
-| v1.0 | Planned | Plugin system — weather, GitHub, calendar plugins |
+| v0.9 | Planned | MCP support — connect any MCP server over stdio (the only extension system; no custom plugin API) |
+| v1.0 | Planned | Local document RAG — point the existing embeddings at your files |
 | v1.1 | Planned | Voice — STT + TTS + wake word |
 
 ---

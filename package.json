@@ -64,5 +64,18 @@
   "homepage": "https://github.com/Nandansai08/personal-ai#readme",
   "bugs": {
     "url": "https://github.com/Nandansai08/personal-ai/issues"
-  }
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "local-first",
+    "ollama",
+    "llm",
+    "chatgpt",
+    "claude",
+    "cli",
+    "memory",
+    "semantic-search",
+    "privacy"
+  ]
 }

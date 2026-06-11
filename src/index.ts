@@ -10,7 +10,6 @@ import { watchPersona, watchProfiles } from './persona/loader.js'
 import { buildSystemPrompt, isGemma3Model } from './persona/system-prompt.js'
 import { startCLI } from './ui/cli.js'
 import { needsSetup, runSetupWizard } from './ui/setup.js'
-import { createWebServer, getServerUrl } from './ui/web/server.js'
 import { ModelManager, defaultModelsConfig } from './core/model-manager.js'
 import { eventBus } from './core/events.js'
 import { logger } from './core/logger.js'
@@ -35,6 +34,12 @@ function resolveEnvPath(): string {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes('--version') || process.argv.includes('-v')) {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as { version: string }
+    console.log(`personal-ai v${pkg.version}`)
+    return
+  }
+
   const envPath = resolveEnvPath()
   const { config } = await import('dotenv')
   config({ path: envPath })
@@ -93,6 +98,8 @@ async function main(): Promise<void> {
   let webToken: string | undefined
 
   const startWebFn = async (): Promise<string> => {
+    // Lazy import — keeps express/ws/cors out of CLI startup entirely
+    const { createWebServer, getServerUrl } = await import('./ui/web/server.js')
     if (!webServer) {
       const preferred = parseInt(process.env['PORT'] ?? '3000', 10)
       const result = await createWebServer({

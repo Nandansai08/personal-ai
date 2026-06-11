@@ -83,12 +83,20 @@ Tools implement `RegisteredTool` and register with the singleton
 `file_reader`) are gated through a `ConfirmHandler` — the CLI installs a y/N
 prompt. Tools never throw; they return `ToolResult { success, data, error }`.
 
+**Extension model: MCP only.** There is no custom plugin API. MCP servers
+(M9) will surface as namespaced `RegisteredTool`s in the same registry,
+inheriting the confirmation gate and result contract.
+
 ## Memory
 
 SQLite (better-sqlite3, WAL) at `~/.personal-ai/memory.db`. Memories are
 normalized (whitespace-collapsed), deduplicated case-insensitively, never
-hard-deleted (archive only). Search is tokenized LIKE with hit-count ranking
-— embeddings (sqlite-vec) arrive in a future milestone (M10).
+hard-deleted (archive only). Retrieval is hybrid: local embeddings
+(nomic-embed-text via Ollama, vectors in a side table) scored
+70% similarity / 20% importance / 10% recency, degrading to tokenized LIKE
+search with hit-count ranking when embeddings are unavailable. Explicit
+"remember …" messages are intercepted, normalized to third-person facts,
+categorized, and confirmed (`src/memory/intent.ts`).
 
 ## Security model
 
