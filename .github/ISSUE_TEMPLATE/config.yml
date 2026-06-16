@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/Nandansai08/personal-ai/discussions
+    about: Use Discussions for open-ended questions, ideas, and configuration help.
+  - name: Security vulnerability
+    url: https://github.com/Nandansai08/personal-ai/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisory — never a public issue.

@@ -30,6 +30,28 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 
 ---
 
+## Feature matrix
+
+| Capability | PersonalAI | ChatGPT desktop | OpenWebUI | LibreChat |
+|---|:---:|:---:|:---:|:---:|
+| Conversational AI | ✅ | ✅ | ✅ | ✅ |
+| Local models (Ollama, LM Studio) | ✅ | ❌ | ✅ | ⚠️ |
+| 8 cloud providers, one env var | ✅ | ❌ | ⚠️ | ✅ |
+| Auto model routing per task | ✅ | ❌ | ❌ | ❌ |
+| Persistent memory (SQLite + WAL) | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| Semantic memory (local embeddings) | ✅ | ❌ | ❌ | ❌ |
+| Tool calling, native + XML fallback | ✅ | ✅ | ⚠️ | ⚠️ |
+| MCP client | ✅ | ✅ | ❌ | ❌ |
+| Plugin system (drop-in ESM) | ✅ | ❌ | ⚠️ | ❌ |
+| Loopback-only + bearer token by default | ✅ | n/a | ❌ | ❌ |
+| Tool confirmation gate | ✅ | ✅ | ⚠️ | ❌ |
+| MIT licensed, single-binary install | ✅ | ❌ | ✅ | ✅ |
+| Voice (STT + TTS) | 🔜 | ✅ | ⚠️ | ⚠️ |
+
+✅ first-class · ⚠️ partial / requires setup · ❌ not supported · 🔜 on roadmap
+
+---
+
 ## Features
 
 - **8 providers** — Ollama, Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, Together; swap with `PROVIDER=groq`
@@ -49,23 +71,61 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for API key links, recommended models
 
 ## Quick Start
 
-**Fastest** (once published to npm):
-
 ```bash
 npx @nandansai08/personal-ai
 ```
 
-Or install globally:
+That's it. The first-run wizard walks you through provider + persona setup; config is stored in `~/.personal-ai/`.
+
+<details>
+<summary><b>Install per OS</b></summary>
+
+**Prerequisites (all platforms):** Node.js ≥ 20 ([download](https://nodejs.org)).
+
+### macOS
 
 ```bash
-npm i -g @nandansai08/personal-ai
-personal-ai
+# Optional: install Ollama for the default local-first setup
+brew install ollama && ollama serve &
+ollama pull qwen2.5:14b && ollama pull gemma3:12b
+
+# Run PersonalAI
+npx @nandansai08/personal-ai
 ```
 
-The first-run wizard walks you through provider + persona setup; config is
-stored in `~/.personal-ai/`.
+### Linux
 
-**From source:**
+```bash
+# Optional: install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen2.5:14b && ollama pull gemma3:12b
+
+# Run PersonalAI
+npx @nandansai08/personal-ai
+```
+
+### Windows
+
+```powershell
+# Optional: install Ollama from https://ollama.com/download/windows
+ollama pull qwen2.5:14b ; ollama pull gemma3:12b
+
+# Run PersonalAI
+npx @nandansai08/personal-ai
+```
+
+Or use Windows Subsystem for Linux and follow the Linux steps.
+
+### Docker (coming in v1.0.x)
+
+```bash
+docker compose up
+```
+
+</details>
+
+<details>
+<summary><b>Install from source</b></summary>
 
 **1. Clone and install**
 
@@ -123,6 +183,8 @@ npm start
 [qwen2.5-coder:7b|coder] > /model gemma3:12b
 [gemma3:12b|coder] > explain async generators
 ```
+
+</details>
 
 ---
 
@@ -284,6 +346,29 @@ run sandboxed with timeouts, and never crash the assistant. Full guide: [docs/PL
 
 ## Architecture
 
+```mermaid
+graph TD
+    User([User]) --> CLI[CLI · readline]
+    User --> Web[Web UI · Express + WS]
+    CLI --> Engine[AssistantEngine · agent loop]
+    Web --> Engine
+    Engine --> Provider[LLMProvider · streaming]
+    Engine --> Memory[(Memory · SQLite + WAL)]
+    Engine --> Tools[ToolRegistry]
+    Engine --> Hooks[PluginHooks]
+    Provider --> Ollama & Anthropic & OpenAI & Groq & Gemini & Mistral & LMStudio & Together
+    Tools --> BuiltIn[Built-in tools]
+    Tools --> Plugins[Plugins · ESM modules]
+    Tools --> MCP[MCP servers · stdio JSON-RPC]
+    Memory --> Embedder[nomic-embed-text via Ollama]
+    Memory --> VectorStore[(memory_vectors)]
+
+    classDef boundary stroke-dasharray: 4 4,stroke:#888
+    class Provider,Tools,Memory boundary
+```
+
+The provider-blind boundary (dashed) is enforced: nothing inside `core/`, `memory/`, `tools/`, or `ui/` imports a provider SDK.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         src/index.ts                            │
@@ -438,6 +523,18 @@ Set `PORT=8080` in `.env` to change the port. `autoPort: true` in `.claude/launc
 | v1.0 | Done | MCP support — connect any MCP server over stdio, tools confirm-gated ([docs/MCP.md](docs/MCP.md)) |
 | v1.1 | Planned | Local document RAG — point the existing embeddings at your files |
 | v1.2 | Planned | Voice — STT + TTS + wake word |
+
+Full roadmap with short / mid / long-term goals: [docs/ROADMAP.md](docs/ROADMAP.md).
+
+---
+
+## Community
+
+- 💬 [GitHub Discussions](https://github.com/Nandansai08/personal-ai/discussions) — questions, ideas, show & tell
+- 🐛 [Issue templates](https://github.com/Nandansai08/personal-ai/issues/new/choose) — bug reports, feature requests
+- 🤝 [Community guide](docs/COMMUNITY.md) — how we organize discussion, Discord plans, growth strategy
+- ❓ [FAQ](docs/FAQ.md) — common questions
+- 📋 [Issues backlog](.github/ISSUES_BACKLOG.md) — 50+ pre-cut issues ready to grab
 
 ---
 

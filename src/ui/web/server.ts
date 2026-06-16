@@ -23,6 +23,10 @@ import { logger } from '../../core/logger.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CLIENT_DIR = path.join(__dirname, 'client')
+const SESSIONS_DIR = path.join(
+  process.env['HOME'] ?? process.env['USERPROFILE'] ?? os.homedir(),
+  '.personal-ai', 'sessions',
+)
 
 export interface WebServerOptions {
   provider:       LLMProvider
@@ -221,6 +225,39 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
     res.json(mcp ? mcp.list() : [])
   })
 
+  // Saved conversation sessions (shared with the CLI's /save & /load)
+  app.get('/api/sessions', (_req, res) => {
+    try {
+      const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))
+      const sessions = files.map(f => {
+        try {
+          const raw = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8')) as
+            { messages?: unknown[]; savedAt?: string }
+          const messages = Array.isArray(raw.messages) ? raw.messages : []
+          const firstUser = messages.find(m => (m as { role?: string }).role === 'user') as { content?: string } | undefined
+          return {
+            name: f.replace(/\.json$/, ''),
+            savedAt: raw.savedAt ?? null,
+            count: messages.length,
+            preview: (firstUser?.content ?? '').slice(0, 80),
+          }
+        } catch { return null }
+      }).filter((s): s is NonNullable<typeof s> => s !== null)
+      sessions.sort((a, b) => String(b.savedAt ?? '').localeCompare(String(a.savedAt ?? '')))
+      res.json(sessions)
+    } catch { res.json([]) }
+  })
+
+  app.delete('/api/sessions/:name', (req, res) => {
+    const safe = String(req.params['name'] ?? '').replace(/[^\w-]/g, '_')
+    try {
+      fs.unlinkSync(path.join(SESSIONS_DIR, `${safe}.json`))
+      res.json({ deleted: true })
+    } catch {
+      res.status(404).json({ error: 'not found' })
+    }
+  })
+
   app.get('/api/system', (_req, res) => {
     const totalMem  = os.totalmem()
     const freeMem   = os.freemem()
@@ -336,6 +373,42 @@ export async function createWebServer(opts: WebServerOptions): Promise<{ server:
             send({ type: 'profile_changed', name: msg.name })
           } catch (e) {
             send({ type: 'error', message: String(e) })
+          }
+          return
+        }
+
+        // New chat: clear this connection's conversation context
+        if (msg.type === 'reset') {
+          context.clear()
+          send({ type: 'reset_ok' })
+          return
+        }
+
+        // Save the current conversation as a named session
+        if (msg.type === 'save') {
+          const name = (msg.name ?? `session-${Date.now()}`).replace(/[^\w-]/g, '_')
+          try {
+            fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+            fs.writeFileSync(path.join(SESSIONS_DIR, `${name}.json`), JSON.stringify({
+              messages: context.getMessages(), savedAt: new Date().toISOString(),
+            }, null, 2))
+            send({ type: 'saved', name })
+          } catch (e) {
+            send({ type: 'error', message: `save failed: ${String(e)}` })
+          }
+          return
+        }
+
+        // Restore a saved session into this connection's context
+        if (msg.type === 'load' && msg.name) {
+          const safe = msg.name.replace(/[^\w-]/g, '_')
+          try {
+            const raw = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, `${safe}.json`), 'utf8')) as { messages?: unknown }
+            if (!Array.isArray(raw.messages)) { send({ type: 'error', message: 'invalid session file' }); return }
+            context.restore(raw.messages as import('../../providers/interface.js').Message[])
+            send({ type: 'history', name: safe, messages: raw.messages })
+          } catch {
+            send({ type: 'error', message: `session "${safe}" not found` })
           }
           return
         }
