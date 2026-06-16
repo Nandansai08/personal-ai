@@ -1,0 +1,62 @@
+# PersonalAI + Ollama, one command.
+#
+#   docker compose up
+#
+# Then open http://localhost:3000 — the launch URL with the token is printed
+# in the personal-ai logs (`docker compose logs personal-ai`).
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pai-ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_started
+    volumes:
+      - ollama:/root/.ollama
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >
+        sleep 4 &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull qwen2.5:14b &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull gemma3:12b &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text
+    restart: "no"
+
+  personal-ai:
+    build: .
+    image: nandansai08/personal-ai:latest
+    container_name: pai-web
+    depends_on:
+      ollama:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:14b
+      OLLAMA_CHAT_MODEL: gemma3:12b
+      EMBEDDINGS_MODEL: nomic-embed-text
+      LOG_LEVEL: info
+    volumes:
+      - personal-ai-data:/root/.personal-ai
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  personal-ai-data:
