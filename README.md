@@ -77,6 +77,8 @@ npx @nandansai08/personal-ai
 
 That's it. The first-run wizard walks you through provider + persona setup; config is stored in `~/.personal-ai/`.
 
+If install fails on your OS, see [Install troubleshooting](docs/INSTALL.md) for macOS Gatekeeper, Linux SELinux, and Windows ARM64 fixes.
+
 <details>
 <summary><b>Install per OS</b></summary>
 
