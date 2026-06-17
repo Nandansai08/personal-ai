@@ -12,6 +12,8 @@ This usually affects the optional local model setup, not PersonalAI itself. Open
 xattr -dr com.apple.quarantine /Applications/Ollama.app
 ```
 
+Warning: this permanently removes macOS quarantine verification from the Ollama app bundle. Only run it if you downloaded Ollama from the official site.
+
 Then start Ollama again:
 
 ```bash
@@ -66,6 +68,9 @@ sudo apt-get install -y build-essential python3
 # Fedora
 sudo dnf groupinstall -y "Development Tools"
 sudo dnf install -y python3
+
+# Arch / Manjaro
+sudo pacman -S base-devel python
 ```
 
 ### Ollama is installed but PersonalAI cannot reach it
@@ -77,7 +82,7 @@ ollama serve
 curl http://localhost:11434/api/tags
 ```
 
-If you run Ollama on another host or port, set `OLLAMA_BASE_URL` in `.env` or `~/.personal-ai/.env`.
+If you run Ollama on another host or port, set `OLLAMA_BASE_URL` in `.env` for repo checkouts. If no package-local `.env` exists, npx/global installs fall back to `~/.personal-ai/.env`.
 
 ## Windows
 
@@ -96,6 +101,15 @@ npx @nandansai08/personal-ai
 ```
 
 If you need native Windows, try the current x64 Node.js release under emulation or install Microsoft C++ Build Tools so npm can compile native packages.
+
+### `EACCES` or permission errors from a system-wide Node.js install
+
+Avoid running npm as Administrator for normal installs. Use a user-scoped Node.js version manager such as [nvm-windows](https://github.com/coreybutler/nvm-windows) or [fnm](https://github.com/Schniz/fnm), then retry in a new terminal:
+
+```powershell
+node --version
+npx @nandansai08/personal-ai
+```
 
 ### PowerShell says running scripts is disabled
 
