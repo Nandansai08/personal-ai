@@ -32,19 +32,36 @@ function readVersion(): string {
   } catch { return '' }
 }
 
-const BANNER = `
-${chalk.cyan('╔═══════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold('PersonalAI')} ${chalk.dim(`v${readVersion()}`.padEnd(8))}                 ${chalk.cyan('║')}
-${chalk.cyan('║')}  ${chalk.dim('Local-first. Any model.')}              ${chalk.cyan('║')}
-${chalk.cyan('╚═══════════════════════════════════════╝')}
-`
+const TIPS = [
+  'Say "remember …" to teach the assistant a fact about you.',
+  'Type /model gpt-4o-mini to hot-swap providers — .env updates automatically.',
+  '/web starts the browser UI on http://localhost:3000.',
+  'Drop a folder into plugins/ to add a custom tool — see docs/PLUGINS.md.',
+  'Connect MCP servers via config/mcp.json — see docs/MCP.md.',
+  '/memory semantic <query> searches by meaning, not just keywords.',
+  '/save names this conversation; /load brings it back later.',
+  '/profile coder swaps the system prompt for development tasks.',
+  'Shift+Enter starts a new line; Enter sends the message.',
+]
 
+const SPARK = '✻'
+
+const banner = (): string => {
+  const accent = chalk.hex('#8b5cf6') // brand violet
+  const version = readVersion()
+  return [
+    '',
+    `  ${accent.bold(SPARK)} ${chalk.bold('Welcome to PersonalAI')} ${chalk.dim(`v${version}`)}`,
+    '',
+  ].join('\n')
+}
 
 function makePrompt(provider: LLMProvider, profileManager?: ProfileManager, modelManager?: ModelManager): string {
+  const accent = chalk.hex('#8b5cf6')
   const model   = modelManager ? modelManager.getCurrentModel() : provider.model
   const profile = profileManager?.getActiveName()
-  const label   = profile && profile !== 'assistant' ? `${model}|${profile}` : model
-  return chalk.cyan(`[${label}] `) + chalk.bold('> ')
+  const label   = profile && profile !== 'assistant' ? `${model} · ${profile}` : model
+  return accent(`${SPARK} `) + chalk.dim(`${label} `) + chalk.bold.hex('#8b5cf6')('› ')
 }
 
 
@@ -64,30 +81,50 @@ export async function startCLI(
 ): Promise<void> {
   let activeProvider = provider
 
-  console.log(BANNER)
+  process.stdout.write(banner())
 
+  // Provider health line — single line, no double newlines
+  let healthLine = ''
   if (activeProvider.healthCheck) {
-    process.stdout.write(chalk.dim('Connecting to provider…'))
+    process.stdout.write(chalk.dim('  Connecting…'))
     const health = await activeProvider.healthCheck()
     if (health.ok) {
-      console.log(`\r${chalk.green('✓')} ${activeProvider.name} / ${chalk.bold(health.model)} ${chalk.dim(`(${health.latencyMs}ms)`)}\n`)
+      healthLine = `${chalk.green('●')} ${activeProvider.name} ${chalk.dim('·')} ${chalk.bold(health.model)} ${chalk.dim(`(${health.latencyMs}ms)`)}`
     } else {
-      console.log(`\r${chalk.red('✗')} ${activeProvider.name} unreachable: ${health.error ?? 'unknown'}`)
-      console.log(chalk.yellow('  Start Ollama or set PROVIDER env var.\n'))
+      healthLine = `${chalk.red('●')} ${activeProvider.name} unreachable ${chalk.dim('— ' + (health.error ?? 'unknown'))}`
     }
+    process.stdout.write('\r  ' + healthLine + '   \n')
   }
 
+  // Condensed status: memory · tools · plugins · MCP · profile — one line each, dim
+  const statusLines: string[] = []
   if (memory) {
     const stats = memory.getStats()
-    console.log(chalk.dim(`  Memory: ${stats.total} stored`))
+    const idx = memory.getIndexStats()
+    const ix = idx.embedder ? `${idx.indexed}/${stats.total} embedded` : 'keyword'
+    statusLines.push(`${chalk.dim('memory')}  ${stats.total} stored ${chalk.dim('·')} ${ix}`)
   }
   if (registry && registry.count() > 0) {
-    console.log(chalk.dim(`  Tools: ${registry.count()} registered`))
+    const mcp = registry.getAll().filter(t => t.definition.name.startsWith('mcp_')).length
+    statusLines.push(`${chalk.dim('tools')}   ${registry.count()} registered${mcp ? ` ${chalk.dim('·')} ${mcp} via MCP` : ''}`)
+  }
+  if (plugins && plugins.list().length > 0) {
+    const healthy = plugins.list().filter(p => p.status === 'healthy').length
+    const total = plugins.list().length
+    statusLines.push(`${chalk.dim('plugins')} ${healthy}/${total} active`)
   }
   if (profileManager) {
     const p = profileManager.getActive()
-    console.log(chalk.dim(`  Profile: ${p.name} — ${p.description}\n`))
+    statusLines.push(`${chalk.dim('profile')} ${p.name} ${chalk.dim('— ' + p.description)}`)
   }
+  for (const line of statusLines) console.log('  ' + line)
+
+  // One rotating tip (Claude Code aesthetic — short, helpful, dim)
+  const tip = TIPS[Math.floor(Math.random() * TIPS.length)]!
+  console.log('')
+  console.log('  ' + chalk.dim('Tip: ') + chalk.dim(tip))
+  console.log('  ' + chalk.dim('Type ') + chalk.hex('#8b5cf6')('/help') + chalk.dim(' for all commands, ') + chalk.hex('#8b5cf6')('/exit') + chalk.dim(' to quit.'))
+  console.log('')
 
   // ── session token tracking ──────────────────────────────────────────
   const sessTokens = { input: 0, output: 0 }

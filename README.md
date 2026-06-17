@@ -1,15 +1,27 @@
-# PersonalAI
+<div align="center">
+
+# ✻ PersonalAI
+
+### Your local-first AI assistant. Any model. Any provider. One npx command.
 
 [![CI](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@nandansai08/personal-ai?color=8b5cf6&label=npm)](https://www.npmjs.com/package/@nandansai08/personal-ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**Local-first AI assistant. Any provider. Runs on your machine.**
+```bash
+npx @nandansai08/personal-ai
+```
 
 <!-- demo.gif: record with `npm start` → ask a question → /model switch → web UI. Keep under 15s. -->
 ![Demo](docs/demo.gif)
 
-No cloud lock-in. Switch between Ollama, Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, or Together with one env var. Auto-routes tasks to the right model — qwen2.5:14b for tools/reasoning, gemma3:12b for chat/long context.
+</div>
+
+> **No cloud lock-in.** Eight providers, one env var. Persistent semantic memory. Plugin system. MCP client. Hardened web UI. All MIT-licensed, all yours.
+
+PersonalAI auto-routes tasks to the right model — `qwen2.5:14b` for tools and reasoning, `gemma3:12b` for chat and long context — and hot-swaps providers without a restart. Default config runs entirely on your machine via Ollama; switch to Anthropic, OpenAI, Groq, Gemini, Mistral, LM Studio, or Together with `/model claude-sonnet-4-6`.
 
 ---
 
