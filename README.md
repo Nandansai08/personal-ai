@@ -1,8 +1,15 @@
 <div align="center">
 
-# ✻ PersonalAI
+```
+██████╗ ███████╗██████╗ ███████╗ ██████╗ ███╗   ██╗ █████╗ ██╗      █████╗ ██╗
+██╔══██╗██╔════╝██╔══██╗██╔════╝██╔═══██╗████╗  ██║██╔══██╗██║     ██╔══██╗██║
+██████╔╝█████╗  ██████╔╝███████╗██║   ██║██╔██╗ ██║███████║██║     ███████║██║
+██╔═══╝ ██╔══╝  ██╔══██╗╚════██║██║   ██║██║╚██╗██║██╔══██║██║     ██╔══██║██║
+██║     ███████╗██║  ██║███████║╚██████╔╝██║ ╚████║██║  ██║███████╗██║  ██║██║
+╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝
+```
 
-### Your local-first AI assistant. Any model. Any provider. One npx command.
+### ✻ Your local-first AI assistant. Any model. Any provider. One npx command.
 
 [![CI](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Nandansai08/personal-ai/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@nandansai08/personal-ai?color=8b5cf6&label=npm)](https://www.npmjs.com/package/@nandansai08/personal-ai)
@@ -382,6 +389,49 @@ graph TD
 ```
 
 The provider-blind boundary (dashed) is enforced: nothing inside `core/`, `memory/`, `tools/`, or `ui/` imports a provider SDK.
+
+### Agent loop — what happens on every message
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as CLI / Web UI
+    participant E  as AssistantEngine
+    participant Int as MemoryIntent
+    participant Mem as Memory<br/>(SQLite + embeddings)
+    participant MM as ModelManager
+    participant H  as Plugin hooks
+    participant P  as LLMProvider
+    participant Tools as ToolRegistry
+
+    User->>UI: "remember I'm at IIT Dhanbad"
+    UI->>E: chat(userMessage)
+
+    E->>Int: detectMemoryIntent(msg)
+    alt explicit "remember …"
+        Int-->>E: normalized fact + category
+        E->>Mem: saveSmart(fact)
+        E-->>UI: ✓ confirmation (skip model)
+    else normal message
+        E->>Mem: searchSmart(msg)  — hybrid 70/20/10
+        Mem-->>E: relevant memories
+        E->>MM: selectModel(msg, ctx.size)
+        MM-->>E: best model for task
+        E->>H: beforePrompt(systemPrompt)
+        H-->>E: (maybe transformed)
+        loop up to MAX_ITER
+            E->>P: chat(messages, systemPrompt, tools)
+            P-->>E: text · tool_call · done
+            opt tool call
+                E->>Tools: dispatch (with confirm gate)
+                Tools-->>E: result (framed, truncated)
+            end
+        end
+        E->>H: afterResponse(text)
+        E-->>UI: stream text · tool pills · done
+    end
+```
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
