@@ -46,12 +46,42 @@ const TIPS = [
 
 const SPARK = '✻'
 
+// ANSI Shadow figlet for "PERSONALAI" — fits in 80 cols. Violet gradient.
+const BIG_BANNER = [
+  '██████╗ ███████╗██████╗ ███████╗ ██████╗ ███╗   ██╗ █████╗ ██╗      █████╗ ██╗',
+  '██╔══██╗██╔════╝██╔══██╗██╔════╝██╔═══██╗████╗  ██║██╔══██╗██║     ██╔══██╗██║',
+  '██████╔╝█████╗  ██████╔╝███████╗██║   ██║██╔██╗ ██║███████║██║     ███████║██║',
+  '██╔═══╝ ██╔══╝  ██╔══██╗╚════██║██║   ██║██║╚██╗██║██╔══██║██║     ██╔══██║██║',
+  '██║     ███████╗██║  ██║███████║╚██████╔╝██║ ╚████║██║  ██║███████╗██║  ██║██║',
+  '╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝',
+]
+
+// Violet → magenta gradient across rows for the big banner
+const BANNER_COLORS = ['#a78bfa', '#9670f5', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6']
+
 const banner = (): string => {
-  const accent = chalk.hex('#8b5cf6') // brand violet
+  const accent  = chalk.hex('#8b5cf6')
   const version = readVersion()
+  const cols    = process.stdout.columns ?? 80
+
+  // Compact banner for narrow terminals (< 82 cols) — single sparkly line
+  if (cols < 82) {
+    return [
+      '',
+      `  ${accent.bold(SPARK)} ${chalk.bold('Welcome to PersonalAI')} ${chalk.dim(`v${version}`)}`,
+      '',
+    ].join('\n')
+  }
+
+  // Big banner — figlet-style with violet gradient
+  const lines = BIG_BANNER.map((row, i) =>
+    chalk.hex(BANNER_COLORS[i] ?? '#8b5cf6').bold(row),
+  )
   return [
     '',
-    `  ${accent.bold(SPARK)} ${chalk.bold('Welcome to PersonalAI')} ${chalk.dim(`v${version}`)}`,
+    ...lines,
+    '',
+    `   ${accent.bold(SPARK)} ${chalk.bold('Welcome to PersonalAI')} ${chalk.dim('· Local-first AI assistant ·')} ${chalk.bold.hex('#a78bfa')(`v${version}`)}`,
     '',
   ].join('\n')
 }
